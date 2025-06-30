@@ -44,7 +44,7 @@ df_year <- rho_year(mod_q0.5, mod_q0.95)
 
 # Gráficos
 setwd('C:/Users/jumar/OneDrive/Escritorio/Github/MejoraModelo')
-png("pol_gr_3", width = 1400, height = 600, res = 150)
+png("pol_gr_3.png", width = 1400, height = 600, res = 150)
 par(mfrow = c(1,2))
 plot(1:92, df_dia$rho_l_q0.5, type='l', 
      main = 'Madrid (Retiro) (días) (pol gr3)',
