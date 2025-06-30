@@ -26,30 +26,30 @@ formula <- as.formula(
 )
 
 # With interactions
-vars <- paste0('`', colnames(df_conj_filled_sc)[2:46], '`')
-
-terminos_principales <- paste(vars, collapse = ' + ')
-
-interacciones_vars <- combn(vars, 2, FUN = function(x) paste(x, collapse = ' : '))
-terminos_interaccion_vars <- paste(interacciones_vars, collapse = ' + ')
-
-seno <- 'I(sin(2*pi*l/365))'
-coseno <- 'I(cos(2*pi*l/365))'
-
-interacciones_estacionales <- c(
-  paste(vars, seno, sep = ' : '),
-  paste(vars, coseno, sep = ' : ')
-)
-terminos_interaccion_estacionales <- paste(interacciones_estacionales, collapse = ' + ')
-
-formula_completa <- as.formula(
-  paste('Y ~',
-        terminos_principales, '+',
-        terminos_interaccion_vars, '+',
-        seno, '+', coseno, '+',
-        terminos_interaccion_estacionales
-  )
-)
+# vars <- paste0('`', colnames(df_conj_filled_sc)[2:46], '`')
+# 
+# terminos_principales <- paste(vars, collapse = ' + ')
+# 
+# interacciones_vars <- combn(vars, 2, FUN = function(x) paste(x, collapse = ' : '))
+# terminos_interaccion_vars <- paste(interacciones_vars, collapse = ' + ')
+# 
+# seno <- 'I(sin(2*pi*l/365))'
+# coseno <- 'I(cos(2*pi*l/365))'
+# 
+# interacciones_estacionales <- c(
+#   paste(vars, seno, sep = ' : '),
+#   paste(vars, coseno, sep = ' : ')
+# )
+# terminos_interaccion_estacionales <- paste(interacciones_estacionales, collapse = ' + ')
+# 
+# formula_completa <- as.formula(
+#   paste('Y ~',
+#         terminos_principales, '+',
+#         terminos_interaccion_vars, '+',
+#         seno, '+', coseno, '+',
+#         terminos_interaccion_estacionales
+#   )
+# )
 
 
 
