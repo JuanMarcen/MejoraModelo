@@ -25,10 +25,37 @@ formula <- as.formula(
         '+ I(sin(2*pi*l/365)) + I(cos(2*pi*l/365))')
 )
 
+# With interactions
+vars <- paste0('`', colnames(df_conj_filled_sc)[2:46], '`')
+
+terminos_principales <- paste(vars, collapse = ' + ')
+
+interacciones_vars <- combn(vars, 2, FUN = function(x) paste(x, collapse = ' : '))
+terminos_interaccion_vars <- paste(interacciones_vars, collapse = ' + ')
+
+seno <- 'I(sin(2*pi*l/365))'
+coseno <- 'I(cos(2*pi*l/365))'
+
+interacciones_estacionales <- c(
+  paste(vars, seno, sep = ' : '),
+  paste(vars, coseno, sep = ' : ')
+)
+terminos_interaccion_estacionales <- paste(interacciones_estacionales, collapse = ' + ')
+
+formula_completa <- as.formula(
+  paste('Y ~',
+        terminos_principales, '+',
+        terminos_interaccion_vars, '+',
+        seno, '+', coseno, '+',
+        terminos_interaccion_estacionales
+  )
+)
+
+
 
 # Models
 mod_nulo_q0.5 <- rq(Y ~ 1, data = df_conj_filled_sc, subset = ind, tau = 0.5)
-mod_q0.5<-step(mod_nulo_q0.5, scope = formula, direction = 'forward',
+mod_q0.5<-step(mod_nulo_q0.5, scope = formula_completa, direction = 'forward',
                pen = log(length(ind)))
 
 mod_nulo_q0.95 <- rq(Y ~ 1, data = df_conj_filled_sc, subset = ind, tau = 0.95)
@@ -53,7 +80,7 @@ df_year <- rho_year(mod_q0.5, mod_q0.95)
 
 # Gráficos
 setwd('C:/Users/jumar/OneDrive/Escritorio/Github/MejoraModelo')
-png("pol_gr_3.png", width = 1400, height = 600, res = 150)
+png("pol_gr_3_armonicos.png", width = 1400, height = 600, res = 150)
 par(mfrow = c(1,2))
 plot(1:92, df_dia$rho_l_q0.5, type='l', 
      main = 'Madrid (Retiro) (días) (pol gr3)',
