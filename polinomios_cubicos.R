@@ -18,6 +18,15 @@ formula <- as.formula(
   paste0('`', colnames(df_conj_filled_sc)[17:46], '`', collapse = '+'))
   )
 
+# Armónicos
+formula <- as.formula(
+  paste('Y ~', paste(colnames(df_conj_filled_sc)[2:16], collapse = '+'), '+',
+        paste0('`', colnames(df_conj_filled_sc)[17:46], '`', collapse = '+'),
+        '+ I(sin(2*pi*l/365)) + I(cos(2*pi*l/365))')
+)
+
+
+# Models
 mod_nulo_q0.5 <- rq(Y ~ 1, data = df_conj_filled_sc, subset = ind, tau = 0.5)
 mod_q0.5<-step(mod_nulo_q0.5, scope = formula, direction = 'forward',
                pen = log(length(ind)))
