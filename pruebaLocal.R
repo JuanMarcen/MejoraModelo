@@ -35,7 +35,6 @@ formula_q0.95 <- as.formula(
 
 # Modelos
 library(quantreg)
-<<<<<<< HEAD
 mod_q0.5 <- rq(formula_q0.5,data=df_conj_filled_sc,subset=ind,tau=0.50)
 mod_q0.95 <- rq(formula_q0.95,data=df_conj_filled_sc,subset=ind,tau=0.95)
 
@@ -100,7 +99,4 @@ abline(h = 0.5, col = 'red')
 lines(1:64, df_year$rho_t_q0.95)
 abline(h = 0.95, col = 'red')
 dev.off()
-=======
-mod_q0.5<-rq(formula_q0.5,data=df_conj_filled_sc,subset=ind,tau=0.50)
-mod_q0.95<-rq(formula_q0.95,data=df_conj_filled_sc,subset=ind,tau=0.95)
->>>>>>> a0229a01aad444e5ad6c929464cdda7f31e2ed8c
+
