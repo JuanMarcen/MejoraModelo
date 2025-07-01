@@ -6,14 +6,15 @@ Y <- readRDS("C:/Users/jumar/OneDrive/Escritorio/TFM/Datos/Y.rds")
 ind <- which(Y$station==230)
 
 df_madrid <- df_conj_filled_sc[ind,]
+df_madrid$Date <- Y$Date[ind]
 
 
 # Dataframe with lags
 library(dplyr)
+library(lubridate)
 
 df_madrid <- df_madrid %>%
-  mutate(t = rep(1960:2023, each = 92)) %>%
-  group_by(t) %>%
+  group_by(Año = year(Date)) %>%
   mutate(across(all_of(names(df_madrid)[2:46]), ~lag(.), .names = "{.col}_lag")) %>%
   ungroup() %>%
   as.data.frame() %>%
