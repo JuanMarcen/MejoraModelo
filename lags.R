@@ -25,6 +25,7 @@ formula <- as.formula(paste(
   'Y ~',
   paste(paste0('`',colnames(df_madrid)[c(2:46,51:95)],'`'),collapse='+'),
   '+ I(sin(2*pi*l/365)) + I(cos(2*pi*l/365))'
+  , '+ t'
 )
 )
 
@@ -54,7 +55,7 @@ df_year <- rho_year(mod_q0.5, mod_q0.95, df_madrid)
 
 # Gráficos
 setwd('C:/Users/jumar/OneDrive/Escritorio/Github/MejoraModelo')
-png("lags.png", width = 1400, height = 600, res = 150)
+png("lags_t.png", width = 1400, height = 600, res = 150)
 par(mfrow = c(1,2))
 plot(unique(df_madrid$l), df_dia$rho_l_q0.5, type='l', 
      main = 'Madrid (Retiro) (días) (pol gr3)',

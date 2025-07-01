@@ -22,7 +22,8 @@ formula <- as.formula(
 formula <- as.formula(
   paste('Y ~', paste(colnames(df_conj_filled_sc)[2:16], collapse = '+'), '+',
         paste0('`', colnames(df_conj_filled_sc)[17:46], '`', collapse = '+'),
-        '+ I(sin(2*pi*l/365)) + I(cos(2*pi*l/365))')
+        '+ I(sin(2*pi*l/365)) + I(cos(2*pi*l/365))'
+        , '+ t')
 )
 
 # With interactions
@@ -55,12 +56,12 @@ formula <- as.formula(
 
 # Models
 mod_nulo_q0.5 <- rq(Y ~ 1, data = df_conj_filled_sc, subset = ind, tau = 0.5)
-mod_q0.5<-step(mod_nulo_q0.5, scope = formula_completa, direction = 'forward',
-               pen = log(length(ind)))
+mod_q0.5<-step(mod_nulo_q0.5, scope = formula, direction = 'forward',
+               pen = log(length(ind)), trace = F)
 
 mod_nulo_q0.95 <- rq(Y ~ 1, data = df_conj_filled_sc, subset = ind, tau = 0.95)
 mod_q0.95<-step(mod_nulo_q0.95, scope = formula, direction = 'forward',
-               pen = log(length(ind)))
+               pen = log(length(ind)), trace = F)
 
 
 # R1
@@ -75,12 +76,12 @@ rho_q0.95 <- sum(mod_q0.95$residuals < 0) / length(ind)
 library(lubridate)
 source('functions.R')
 
-df_dia <- rho_day(mod_q0.5, mod_q0.95)
-df_year <- rho_year(mod_q0.5, mod_q0.95)
+df_dia <- rho_day(mod_q0.5, mod_q0.95, df_conj_filled_sc[ind, ])
+df_year <- rho_year(mod_q0.5, mod_q0.95, df_conj_filled_sc[ind, ])
 
 # Gráficos
 setwd('C:/Users/jumar/OneDrive/Escritorio/Github/MejoraModelo')
-png("pol_gr_3_armonicos.png", width = 1400, height = 600, res = 150)
+png("pol_gr_3_armonicos_t.png", width = 1400, height = 600, res = 150)
 par(mfrow = c(1,2))
 plot(1:92, df_dia$rho_l_q0.5, type='l', 
      main = 'Madrid (Retiro) (días) (pol gr3)',
