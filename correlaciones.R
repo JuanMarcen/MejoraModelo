@@ -106,3 +106,4 @@ mod4 <- lm(q0.95 ~ poly(t, 7), data = quantile)
 
 lines(quantile$t, predict(mod3, quantile), col='darkgreen', lwd= 2)
 lines(quantile$t, predict(mod4, quantile), col='magenta', lwd= 2)
+
