@@ -7,14 +7,13 @@ ind <- which(Y$station==230)
 
 library(lubridate)
 df_madrid <- df_conj_filled_sc[ind,]
-df_madrid$t <- year(Y$Date[ind]) - 1960 + 1
 
 
 # Dataframe with lags
 library(dplyr)
+library(lubridate)
 
 df_madrid <- df_madrid %>%
-  group_by(t) %>%
   mutate(across(all_of(names(df_madrid)[2:46]), ~lag(.), .names = "{.col}_lag")) %>%
   ungroup() %>%
   as.data.frame() %>%
