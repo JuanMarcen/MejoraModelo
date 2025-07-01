@@ -7,7 +7,6 @@ ind <- which(Y$station==230)
 
 library(lubridate)
 df_madrid <- df_conj_filled_sc[ind,]
-df_madrid$t <- year(Y$Date[ind]) - 1960 + 1
 
 
 # Dataframe with lags
