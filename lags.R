@@ -25,6 +25,7 @@ formula <- as.formula(paste(
   'Y ~',
   paste(paste0('`',colnames(df_madrid)[c(2:46,51:95)],'`'),collapse='+'),
   '+ I(sin(2*pi*l/365)) + I(cos(2*pi*l/365))'
+  , '+ t'
 )
 )
 
