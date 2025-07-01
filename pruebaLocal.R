@@ -24,12 +24,14 @@ vars_q0.95 <- ifelse(grepl("^I\\(.*\\)$", vars_q0.95),
 formula_q0.5 <- as.formula(
   paste('Y~', paste(
     vars_q0.5,collapse = '+'
-  ),'+ I(sin(2*pi*l/365)) + I(cos(2*pi*l/365))')
+  ),'+ I(sin(2*pi*l/365)) + I(cos(2*pi*l/365))'
+  , '+ t')
 )
 formula_q0.95 <- as.formula(
   paste('Y~', paste(
     vars_q0.95,collapse = '+'
-  ),'+ I(sin(2*pi*l/365)) + I(cos(2*pi*l/365))')
+  ),'+ I(sin(2*pi*l/365)) + I(cos(2*pi*l/365))'
+  , '+ t')
 )
 
 
@@ -54,12 +56,12 @@ rho_q0.95 <- sum(mod_q0.95$residuals<0) / length(ind)
 library(lubridate)
 source('functions.R')
 
-df_dia <- rho_day(mod_q0.5, mod_q0.95)
-df_year <- rho_year(mod_q0.5, mod_q0.95)
+df_dia <- rho_day(mod_q0.5, mod_q0.95, df_conj_filled_sc[ind,])
+df_year <- rho_year(mod_q0.5, mod_q0.95, df_conj_filled_sc[ind,])
 
 # Gráficos
 setwd('C:/Users/jumar/OneDrive/Escritorio/Github/MejoraModelo')
-png("solo_armonicos.png", width = 1400, height = 600, res = 150)
+png("armonicos_t.png", width = 1400, height = 600, res = 150)
 par(mfrow = c(1,2))
 plot(1:92, df_dia$rho_l_q0.5, type='l', 
      main = 'Madrid (Retiro) (días) (armónicos)',
