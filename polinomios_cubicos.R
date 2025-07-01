@@ -23,7 +23,8 @@ formula <- as.formula(
   paste('Y ~', paste(colnames(df_conj_filled_sc)[2:16], collapse = '+'), '+',
         paste0('`', colnames(df_conj_filled_sc)[17:46], '`', collapse = '+'),
         '+ I(sin(2*pi*l/365)) + I(cos(2*pi*l/365))'
-        , '+ t')
+        , '+ t'
+        )
 )
 
 # With interactions
