@@ -79,6 +79,7 @@ source('functions.R')
 
 df_dia <- rho_day(mod_q0.5, mod_q0.95, df_conj_filled_sc[ind, ])
 df_year <- rho_year(mod_q0.5, mod_q0.95, df_conj_filled_sc[ind, ])
+df_geop <- rho_geop(mod_q0.5, mod_q0.95, df_conj_filled_sc[ind, ], 'g300', 50)
 
 # Gráficos
 setwd('C:/Users/jumar/OneDrive/Escritorio/Github/MejoraModelo')
@@ -98,3 +99,11 @@ abline(h = 0.5, col = 'red')
 lines(1:64, df_year$rho_t_q0.95)
 abline(h = 0.95, col = 'red')
 dev.off()
+
+plot(1:50, df_geop$rho_g_q0.5, type='l', 
+     main = 'Madrid (Retiro) (geop) (pol gr3)',
+     ylab = expression(rho[g](tau)), xlab = 'l', ylim = c(0, 1))
+abline(h = 0.5, col = 'red')
+lines(1:50, df_geop$rho_g_q0.95)
+abline(h = 0.95, col = 'red')
+
