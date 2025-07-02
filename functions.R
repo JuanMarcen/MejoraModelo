@@ -106,3 +106,30 @@ rho_year <- function(model_q1, model_q2, df, extra = F){
   
   return(df_year)
 }
+
+rho_geop <- function(model_q1, model_q2, df, geop, n.intervals){
+  
+  breaks <- quantile(df[[geop]], 
+                     probs = seq(0, 1, length.out = n.intervals +1),
+                     na.rm = TRUE)
+  
+  df$aux <- cut(df[[geop]],
+                breaks = breaks,
+                include.lowest = TRUE,
+                labels = FALSE)
+  
+  int <- unique(df$aux)
+  df_geop <- matrix(NA, nrow=length(int), ncol=2)
+  df_geop <- as.data.frame(df_geop, row.names = int)
+  colnames(df_geop) <- c('rho_g_q0.5','rho_g_q0.95')
+  
+  for (i in 1:length(int)){
+    
+    j <- which(df$aux == int[i])
+    df_geop[i,'rho_g_q0.5'] <- sum(model_q1$residuals[j] < 0, na.rm=T) / length(j)
+    df_geop[i,'rho_g_q0.95'] <- sum(model_q2$residuals[j] < 0, na.rm=T) / length(j)
+    
+  }
+  
+  return(df_geop)
+}

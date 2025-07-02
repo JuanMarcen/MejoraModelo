@@ -73,22 +73,25 @@ source('functions.R')
 
 df_dia <- rho_day(mod_q0.5, mod_q0.95, df_conj_filled_sc[ind,])
 df_year <- rho_year(mod_q0.5, mod_q0.95, df_conj_filled_sc[ind,])
+df_geop <- rho_geop(mod_q0.5, mod_q0.95, df_conj_filled_sc[ind, ], 'g300', 50)
 
 df_dia_p <- rho_day(mod_q0.5, mod_q0.95, df_conj_filled_sc[ind,], extra = T)
 df_year_m <- rho_year(mod_q0.5, mod_q0.95, df_conj_filled_sc[ind,], extra = T)
+
+
 
 # Gráficos
 setwd('C:/Users/jumar/OneDrive/Escritorio/Github/MejoraModelo')
 png("armonicos_t.png", width = 1400, height = 600, res = 150)
 par(mfrow = c(1,2))
-plot(1:92, df_dia$rho_l_q0.5, type='l', lwd = 2,
+plot(1:92, df_dia$rho_l_q0.5, type='l', 
      main = 'Madrid (Retiro) (días) (armónicos)',
      ylab = expression(rho[l](tau)), xlab = 'l', ylim = c(0, 1))
 abline(h = 0.5, col = 'red')
 lines(1:92, df_dia_p$rho_l_q0.5_p1, col = 'blue')
 lines(1:92, df_dia_p$rho_l_q0.5_p2, col = 'forestgreen')
 lines(1:92, df_dia_p$rho_l_q0.5_p3, col = 'purple')
-lines(1:92, df_dia$rho_l_q0.95, lwd = 2)
+lines(1:92, df_dia$rho_l_q0.95)
 lines(1:92, df_dia_p$rho_l_q0.95_p1, col = 'blue')
 lines(1:92, df_dia_p$rho_l_q0.95_p2, col = 'forestgreen')
 lines(1:92, df_dia_p$rho_l_q0.95_p3, col = 'purple')
@@ -97,14 +100,14 @@ legend('bottom', legend = c('Todo', '1960-1980', '1981-2001', '2002-2023'),
        col = c('black', 'blue', 'forestgreen', 'purple'), lty = 1, horiz = T,
        cex = 0.5)
 
-plot(1:64, df_year$rho_t_q0.5, type='l', lwd = 2, 
+plot(1:64, df_year$rho_t_q0.5, type='l', 
      main = 'Madrid (Retiro) (años) (armónicos)',
      ylab = expression(rho[t](tau)), xlab = 't', ylim = c(0, 1))
 abline(h = 0.5, col = 'red')
 lines(1:64, df_year_m$rho_t_q0.5_jun, col = 'blue')
 lines(1:64, df_year_m$rho_t_q0.5_jul, col = 'forestgreen')
 lines(1:64, df_year_m$rho_t_q0.5_ag, col = 'purple')
-lines(1:64, df_year$rho_t_q0.95, lwd = 2)
+lines(1:64, df_year$rho_t_q0.95)
 lines(1:64, df_year_m$rho_t_q0.95_jun, col = 'blue')
 lines(1:64, df_year_m$rho_t_q0.95_jul, col = 'forestgreen')
 lines(1:64, df_year_m$rho_t_q0.95_ag, col = 'purple')
@@ -114,4 +117,11 @@ legend('bottom', legend = c('Todo', 'Junio', 'Julio', 'Agosto'),
        cex = 0.5)
 
 dev.off()
+
+plot(1:50, df_geop$rho_g_q0.5, type='l', 
+     main = 'Madrid (Retiro) (geop) (pol gr3)',
+     ylab = expression(rho[g](tau)), xlab = 'l', ylim = c(0, 1))
+abline(h = 0.5, col = 'red')
+lines(1:50, df_geop$rho_g_q0.95)
+abline(h = 0.95, col = 'red')
 

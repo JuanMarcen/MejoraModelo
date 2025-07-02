@@ -14,13 +14,20 @@ library(dplyr)
 
 df_madrid <- df_madrid %>%
   group_by(t) %>%
-  mutate(across(all_of(names(df_madrid)[2:46]), ~lag(.), .names = "{.col}_lag")) %>%
+  mutate(across(
+    all_of(names(df_madrid)[2:16]), 
+    list(
+      lag1 = ~lag(., 1),
+      lag2 = ~lag(., 2),
+      lag3 = ~lag(., 3) 
+      ),
+    .names = "{.col}_{.fn}"
+    )) %>%
   ungroup() %>%
   as.data.frame() %>%
   na.omit()
 
 # Model
-
 formula <- as.formula(paste(
   'Y ~',
   paste(paste0('`',colnames(df_madrid)[c(2:46,51:95)],'`'),collapse='+'),
