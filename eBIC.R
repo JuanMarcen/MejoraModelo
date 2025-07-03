@@ -9,9 +9,10 @@ my_eBIC<-function(model, gamma, p){
   loss <- model$rho
   
   n <- length(model$fitted.values)
-  k <- length(coef(model)) - 1
+  k <- length(coef(model)) 
   
   eBIC <- 2 * n * log((1 / n) * loss) + k * log(n) + 2 * gamma * log(choose(p,k))
+  #AIC <- - 2 * n * log (0.5*0.5) +  2*n*log((1/n)*loss) + 2*n + k*2
   
   return(eBIC)
   
@@ -21,8 +22,8 @@ my_eBIC<-function(model, gamma, p){
 step_rq_eBIC<-function(data, response, tau = 0.5, gamma = 0.5, trace = TRUE){
   
   # size of covariates set
-  vars <- setdiff(names(data),response)
-  p <- length(vars)
+  vars <- paste0('`',setdiff(names(data),response),'`')
+  p <- length(vars) + 1
   
   # Null model
   formula_current <- as.formula(paste(response, '~ 1'))
@@ -82,15 +83,3 @@ step_rq_eBIC<-function(data, response, tau = 0.5, gamma = 0.5, trace = TRUE){
 }
 
 
-mod_0 <- step_rq_eBIC(df_conj_filled_sc[ind,1:46], response = 'Y', gamma = 0, tau = 0.95)
-mod_0.5 <- step_rq_eBIC(df_conj_filled_sc[ind,c(1:46)], response = 'Y', gamma = 0.5, tau =0.95)
-mod_1 <- step_rq_eBIC(df_conj_filled_sc[ind,1:46], response = 'Y', gamma = 1, tau = 0.95)
-
-length(coef(mod_0$model))
-length(coef(mod_0.5$model))
-length(coef(mod_1$model))
-
-coef(mod_0.5$model) == coef(mod_1$model)
-mod_0$eBIC
-mod_1$eBIC
-mod_0.5$eBIC
