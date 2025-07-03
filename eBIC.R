@@ -82,15 +82,3 @@ step_rq_eBIC<-function(data, response, tau = 0.5, gamma = 0.5, trace = TRUE){
 }
 
 
-mod_0 <- step_rq_eBIC(df_conj_filled_sc[ind,1:46], response = 'Y', gamma = 0, tau = 0.95)
-mod_0.5 <- step_rq_eBIC(df_conj_filled_sc[ind,c(1:46)], response = 'Y', gamma = 0.5, tau =0.95)
-mod_1 <- step_rq_eBIC(df_conj_filled_sc[ind,1:46], response = 'Y', gamma = 1, tau = 0.95)
-
-length(coef(mod_0$model))
-length(coef(mod_0.5$model))
-length(coef(mod_1$model))
-
-coef(mod_0.5$model) == coef(mod_1$model)
-mod_0$eBIC
-mod_1$eBIC
-mod_0.5$eBIC
