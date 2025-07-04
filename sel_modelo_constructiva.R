@@ -1,7 +1,9 @@
 rm(list=ls())
 
-df_conj_filled_sc <- readRDS("C:/Users/jumar/OneDrive/Escritorio/TFM/Datos/df_conj_filled_sc.rds")
-Y <- readRDS("C:/Users/jumar/OneDrive/Escritorio/TFM/Datos/Y.rds")
+#df_conj_filled_sc <- readRDS("C:/Users/jumar/OneDrive/Escritorio/TFM/Datos/df_conj_filled_sc.rds")
+df_conj_filled_sc <- readRDS("C:/Users/jumar/OneDrive/Escritorio/TFM/Datos/df_conj_filled_sc_lag.rds")
+#Y <- readRDS("C:/Users/jumar/OneDrive/Escritorio/TFM/Datos/Y.rds")
+Y <- readRDS("C:/Users/jumar/OneDrive/Escritorio/TFM/Datos/Y_lag.rds")
 
 ind <- which(Y$station==230)
 
@@ -22,19 +24,51 @@ mod_harm <- step_rq_eBIC(
   harmonics = TRUE
 ) 
 
-my_eBIC(mod_nulo_q0.95,gamma = 1, 10)
-for (i in 1:5){
-  mod <- rq(as.formula(paste('Y ~',paste0('c.', 1:i, ' + s.', 1:i,collapse = '+'))),
-            data = df_harm, tau = 0.95)
-  cat('armonico',i,'eBIC:',my_eBIC(mod,gamma = 1,p = 10),
-      'R1:',1-mod$rho/mod_nulo_q0.95$rho , '\n' )
-}
+# my_eBIC(mod_nulo_q0.95,gamma = 1, 10)
+# for (i in 1:5){
+#   mod <- rq(as.formula(paste('Y ~',paste0('c.', 1:i, ' + s.', 1:i,collapse = '+'))),
+#             data = df_harm, tau = 0.95)
+#   cat('armonico',i,'eBIC:',my_eBIC(mod,gamma = 1,p = 10),
+#       'R1:',1-mod$rho/mod_nulo_q0.95$rho , '\n' )
+# }
 
-mod2 <- step_rq_eBIC(
-  mod_harm, data = df_harm,
-  scope = as.formula(paste('Y~c.1+s.1+',paste(names(df_harm[2:16]),collapse = '+')))
-)
+# After this, we know we need harmonics of order 1
+# Next step: Create the df with all the needed data as Jorge said
 
+jun_ag <- which(df_madrid$l >= 5 & df_madrid$l <= 96) # motnhs of june and august
+# this subset is the one that may have all the possibe data available
+
+library(dplyr)
+df <- df_harm %>%
+  select(Y,l,t,c.1,s.1) %>%
+  as.data.frame()
+
+# g300 residuals (substract obs of 28th may)
+not_28 <- which(df$l >=2)
+mod <- lm(df_madrid$g300[not_28] ~ df$s.1[not_28] + df$s.1[not_28])
+g300_res <- scale(mod$residuals)
+
+#g500 res
+mod <- lm(df_madrid$g500[not_28] ~ df$s.1[not_28] + df$s.1[not_28])
+g500_res <- scale(mod$residuals)
+
+#g700 res
+mod <- lm(df_madrid$g700[not_28] ~ df$s.1[not_28] + df$s.1[not_28])
+g700_res <- scale(mod$residuals)
+
+
+
+
+
+
+
+
+
+
+
+
+
+## EXTRA 
 
 mod_q0.5 <- rq(as.formula(paste('Y ~',paste0('c.', 1:2, ' + s.', 1:2,collapse = '+'))),
           data = df_harm, tau = 0.5)
