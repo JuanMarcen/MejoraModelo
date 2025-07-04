@@ -27,14 +27,14 @@ step_rq_eBIC<-function(initial_model, data, scope,
   
   # size of covariates set
   vars <- labels(terms(scope)) #formula terms
-  print(vars)
+  #print(vars)
   p <- length(vars) 
   response <- as.character(scope[[2]]) #response variable
-  print(response)
+  #print(response)
   tau <- initial_model$tau
   #print(tau)
   #data <- get(as.character(initial_model$call$data))
-  print(dim(data))
+  #print(dim(data))
   
   if (harmonics == TRUE){
     n <- length(vars) / 2
@@ -42,14 +42,14 @@ step_rq_eBIC<-function(initial_model, data, scope,
   }
   
   # Initial model
-  formula_current <- scope
+  formula_current <- initial_model$formula
   model_current <- initial_model
   best_eBIC <- my_eBIC(model_current, gamma, p)
   
   selected_vars <- attr(terms(formula(model_current)), "term.labels")
-  print(selected_vars)
+  #print(selected_vars)
   remaining_vars <- setdiff(vars, selected_vars)
-  print(remaining_vars)
+  #print(remaining_vars)
   steps <- list()
   steps[[1]] <- list(formula = formula_current, eBIC = best_eBIC)
   
@@ -97,7 +97,12 @@ step_rq_eBIC<-function(initial_model, data, scope,
     print(formula_current)
   }
   
-  attr(model_current, 'eBIC') <- best_eBIC
+  # eBIC
+  model_current$eBIC <- best_eBIC
+  
+  # R1
+  model_null <- rq(paste(response, '~ 1'), data = data, tau = tau)
+  model_current$R1 <- 1 - model_current$rho / model_null$rho
   return(model_current)
 }
 
