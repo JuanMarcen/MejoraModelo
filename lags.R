@@ -41,10 +41,6 @@ mod_nulo_q0.5 <- rq(Y ~ 1, data = df_madrid, tau = 0.5)
 mod_q0.5<-step(mod_nulo_q0.5, scope = formula, direction = 'forward',
                pen = log(dim(df_madrid)[1]))
 
-mod_nulo_q0.5_l <- lm(Y ~ 1, data = df_madrid)
-mod_q0.5_l<-step(mod_nulo_q0.5_l, scope = formula, direction = 'forward',
-               pen = log(dim(df_madrid)[1]))
-
 mod_nulo_q0.95 <- rq(Y ~ 1, data = df_madrid, tau = 0.95)
 mod_q0.95<-step(mod_nulo_q0.95, scope = formula, direction = 'forward',
                 pen = log(length(ind)))
