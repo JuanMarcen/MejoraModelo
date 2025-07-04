@@ -10,6 +10,7 @@ my_eBIC<-function(model, gamma, p){
   
   n <- length(model$fitted.values)
   k <- length(coef(model)) 
+
   
   eBIC <- 2 * n * log((1 / n) * loss) + k * log(n) + 2 * gamma * log(choose(p,k))
   #AIC <- - 2 * n * log (0.5*0.5) +  2*n*log((1/n)*loss) + 2*n + k*2
