@@ -10,7 +10,7 @@ my_eBIC<-function(model, gamma, p){
   loss <- model$rho
   
   n <- length(model$fitted.values)
-  k <- length(coef(model)) 
+  k <- length(coef(model)) - 1
 
   
   eBIC <- 2 * n * log((1 / n) * loss) + k * log(n) + 2 * gamma * log(choose(p,k))
@@ -28,7 +28,7 @@ step_rq_eBIC<-function(initial_model, data, scope,
   # size of covariates set
   vars <- labels(terms(scope)) #formula terms
   print(vars)
-  p <- length(vars) + 1
+  p <- length(vars) 
   response <- as.character(scope[[2]]) #response variable
   print(response)
   tau <- initial_model$tau
@@ -97,7 +97,8 @@ step_rq_eBIC<-function(initial_model, data, scope,
     print(formula_current)
   }
   
-  return(list(model = model_current, eBIC = best_eBIC))
+  attr(model_current, 'eBIC') <- best_eBIC
+  return(model_current)
 }
 
 
