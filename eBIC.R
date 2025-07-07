@@ -64,7 +64,21 @@ step_rq_eBIC<-function(initial_model, data, scope,
       formula_try <- as.formula(
         paste(response, '~', paste(c(selected_vars, var), collapse = '+'))
       )
-      model_try <- rq(formula_try, data = data, tau = tau)
+      # Manejo del error en rq()
+      model_try <- tryCatch(
+        rq(formula_try, data = data, tau = tau),
+        error = function(e) return(NULL)
+      )
+      
+      # Si el modelo falló, pasa al siguiente
+      if (is.null(model_try)) {
+        if (trace) cat("Saltando variable (error en ajuste):", var, "\n")
+        eBIC_val <- Inf
+        eBICs <- c(eBICs, eBIC_val)
+        models[[var]] <- list(model = NULL, formula = formula_try, eBIC = eBIC_val)
+        next
+      }
+      
       eBIC_val <- my_eBIC(model_try, gamma, p)
       eBICs <- c(eBICs,eBIC_val)
       models[[var]] <- list(model = model_try, formula = formula_try, eBIC = eBIC_val)
@@ -92,17 +106,29 @@ step_rq_eBIC<-function(initial_model, data, scope,
     
   }
   
-  if (trace) {
-    cat("\nFinal model:\n")
-    print(formula_current)
-  }
-  
   # eBIC
   model_current$eBIC <- best_eBIC
   
   # R1
-  model_null <- rq(paste(response, '~ 1'), data = data, tau = tau)
+  model_null <- suppressWarnings(
+    rq(paste(response, '~ 1'), data = data, tau = tau)
+  )
   model_current$R1 <- 1 - model_current$rho / model_null$rho
+  
+  if (trace && harmonics == TRUE) {
+    cat("\nFinal model:\n")
+    print(formula_current)
+    cat('R1_final: ', model_current$R1, '\n')
+    cat('eBIC final: ', model_current$eBIC, '\n')
+  }
+  
+  if (trace && harmonics == FALSE) {
+    cat("\nFinal model:\n")
+    print(formula_current)
+    cat('R1 initial: ', initial_model$R1, '| R1_final: ', model_current$R1, '\n')
+    cat('eBIC initial: ', initial_model$eBIC, '| eBIC final: ', model_current$eBIC, '\n')
+  }
+  
   return(model_current)
 }
 
