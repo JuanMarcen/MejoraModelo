@@ -22,7 +22,7 @@ my_eBIC<-function(model, gamma, p){
 
 
 step_rq_eBIC<-function(initial_model, data, scope, 
-                       gamma = 0.5, 
+                       gamma = 0, 
                        trace = TRUE, harmonics = FALSE){
   
   # size of covariates set

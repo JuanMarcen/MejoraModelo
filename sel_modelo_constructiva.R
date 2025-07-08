@@ -21,7 +21,7 @@ mod_nulo_q0.95 <- rq(Y~1, tau= 0.95, data = df_harm)
 mod_harm <- step_rq_eBIC(
   mod_nulo_q0.5, data = df_harm,
   scope = as.formula(paste('Y ~',paste0('c.', 1:5, ' + s.', 1:5,collapse = '+'))),
-  gamma = 0.5,
+  gamma = 0,
   harmonics = TRUE
 ) 
 
@@ -39,52 +39,105 @@ mod_harm <- step_rq_eBIC(
 library(dplyr)
 
 # Period of reference 1991-2020 (t: 32-61) nad without 28th may
-ref_not_28 <- which(df_madrid$t >= 32 & df_madrid$t <= 61 & df_madrid$l >=2)
+ref_not_28 <- which(df_madrid$t >= 22 & df_madrid$t <= 51 & df_madrid$l >=2)
+not_28 <- which(df_madrid$l >= 2)
 
 # g300 residuals (substract obs of 28th may)
-mod <- lm(df_madrid$g300[ref_not_28] ~ df_harm$s.1[ref_not_28] + df_harm$c.1[ref_not_28])
-g300 <- scale(mod$residuals)
+mod <- lm(g300 ~ s.1 + c.1, data = df_harm, subset = ref_not_28)
+preds <- predict(mod, newdata = data.frame(
+  c.1 = df_harm$c.1[not_28],
+  s.1 = df_harm$s.1[not_28]
+))
+
+g300 <- df_madrid$g300[not_28] - preds
+g300 <- scale(g300)
 
 #g500 res
-mod <- lm(df_madrid$g500[ref_not_28] ~ df_harm$s.1[ref_not_28] + df_harm$c.1[ref_not_28])
-g500 <- scale(mod$residuals)
+mod <- lm(g500 ~ s.1 + c.1, data = df_harm, subset = ref_not_28)
+preds <- predict(mod, newdata = data.frame(
+  c.1 = df_harm$c.1[not_28],
+  s.1 = df_harm$s.1[not_28]
+))
+
+g500 <- df_madrid$g500[not_28] - preds
+g500 <- scale(g500)
 
 #g700 res
-mod <- lm(df_madrid$g700[ref_not_28] ~ df_harm$s.1[ref_not_28] + df_harm$c.1[ref_not_28])
-g700 <- scale(mod$residuals)
+mod <- lm(g700 ~ s.1 + c.1, data = df_harm, subset = ref_not_28)
+preds <- predict(mod, newdata = data.frame(
+  c.1 = df_harm$c.1[not_28],
+  s.1 = df_harm$s.1[not_28]
+))
+
+g700 <- df_madrid$g700[not_28] - preds
+g700 <- scale(g700)
 
 #g300-g500 res
-mod <- lm(df_madrid$g300[ref_not_28]-df_madrid$g500[ref_not_28] ~ df_harm$s.1[ref_not_28] + df_harm$c.1[ref_not_28])
-g300_g500 <- scale(mod$residuals)
+mod <- lm(g300 - g500 ~ s.1 + c.1, data = df_harm, subset = ref_not_28)
+preds <- predict(mod, newdata = data.frame(
+  c.1 = df_harm$c.1[not_28],
+  s.1 = df_harm$s.1[not_28]
+))
+
+g300_g500 <- df_madrid$g300[not_28] - df_madrid$g500[not_28] - preds
+g300_g500 <- scale(g300_g500)
+
+g300_g500 <- g300 - g500
 
 #g300-g700 res
-mod <- lm(df_madrid$g300[ref_not_28]-df_madrid$g700[ref_not_28] ~ df_harm$s.1[ref_not_28] + df_harm$c.1[ref_not_28])
-g300_g700 <- scale(mod$residuals)
+mod <- lm(g300 - g700 ~ s.1 + c.1, data = df_harm, subset = ref_not_28)
+preds <- predict(mod, newdata = data.frame(
+  c.1 = df_harm$c.1[not_28],
+  s.1 = df_harm$s.1[not_28]
+))
 
+g300_g700 <- df_madrid$g300[not_28] - df_madrid$g700[not_28] - preds
+g300_g700 <- scale(g300_g700)
+
+g300_g700 <- g300 - g700
 
 #g300-g300_lag
-aux <- df_madrid[,c('g300','g500','g700','t','l')] %>% group_by(t) %>% 
+aux <- df_harm[, c('Y','c.1', 's.1', 'g300', 'g500', 'g700', 't', 'l')] %>% 
+  group_by(t) %>% 
   mutate(across(c(g300,g500,g700),
                 .fns = ~lag(.),
                 .names = '{.col}_lag')) %>%
   as.data.frame() %>% na.omit()
 
-mod <- lm(aux$g300-aux$g300_lag ~ df_harm$s.1[ref_not_28] + df_harm$c.1[ref_not_28])
-g300_g300_lag <- scale(mod$residuals)
+mod <- lm(g300 - g300_lag ~ s.1 + c.1, data = aux, subset = ref_not_28)
+preds <- predict(mod, newdata = data.frame(
+  c.1 = df_harm$c.1[not_28],
+  s.1 = df_harm$s.1[not_28]
+))
+
+g300_g300_lag <- aux$g300 - aux$g300_lag - preds
+g300_g300_lag <- scale(g300_g300_lag)
 
 #g500-g500_lag
-mod <- lm(aux$g500-aux$g500_lag ~ df_harm$s.1[ref_not_28] + df_harm$c.1[ref_not_28])
-g500_g500_lag <- scale(mod$residuals)
+mod <- lm(g500 - g500_lag ~ s.1 + c.1, data = aux, subset = ref_not_28)
+preds <- predict(mod, newdata = data.frame(
+  c.1 = df_harm$c.1[not_28],
+  s.1 = df_harm$s.1[not_28]
+))
+
+g500_g500_lag <- aux$g500 - aux$g500_lag - preds
+g500_g500_lag <- scale(g500_g500_lag)
 
 #g700-g700_lag
-mod <- lm(aux$g700-aux$g700_lag ~ df_harm$s.1[ref_not_28] + df_harm$c.1[ref_not_28])
-g700_g700_lag <- scale(mod$residuals)
+mod <- lm(g700 - g700_lag ~ s.1 + c.1, data = aux, subset = ref_not_28)
+preds <- predict(mod, newdata = data.frame(
+  c.1 = df_harm$c.1[not_28],
+  s.1 = df_harm$s.1[not_28]
+))
+
+g700_g700_lag <- aux$g700 - aux$g700_lag - preds
+g700_g700_lag <- scale(g700_g700_lag)
 
 
 # DATA FRAME FINAL: OBS JUNE - AUGUST
 jun_ag <- which(df_madrid$l >= 5 & df_madrid$l <= 96) # months of june and august
 # this subset is the one that may have all the possibe data available
-ind_aux <- match(jun_ag, ref_not_28) # selection of of the values of the residuals in june - august
+ind_aux <- match(jun_ag, not_28) # selection of of the values of the residuals in june - august
 df <- df_harm[jun_ag,] %>%
   select(Y,l,t,c.1,s.1) %>%
   mutate(
@@ -120,14 +173,15 @@ mod_step1 <- step_rq_eBIC(
 
 # lags of order 1, 2 and 3 of the residuals
 lag_res <- data.frame(
-  t = df_madrid$t[ref_not_28],
+  t = df_madrid$t[not_28],
+  l = df_madrid$l[not_28],
   g300, g500, g700,
   g300_g500, g300_g700,
   g300_g300_lag, g500_g500_lag, g700_g700_lag
 ) %>%
   group_by(t) %>%
   mutate(across(
-    everything(),
+    -c(1),
     .fns = list(
       lag1 = ~lag(.x, 1),
       lag2 = ~lag(.x, 2),
@@ -137,6 +191,8 @@ lag_res <- data.frame(
   )) %>% 
   na.omit() %>%
   as.data.frame()
+
+lag_res$l <- lag_res$l - min(lag_res$l) + 1
 
 # final data frame for all the following steps
 lags_only <- lag_res %>% select(matches("_lag[123]$"))
@@ -208,12 +264,12 @@ mod_step5 <- step_rq_eBIC(
 )
 
 #----Step 6: Polynomials of order 2 and 3 of all the chosen variables----
-vars <- names(mod_step5$coefficients)[2:length(names(mod_step5$coefficients))]
+vars <- names(mod_step5$coefficients)[4:length(names(mod_step5$coefficients))]
 
 polynomials <- c(paste0(
   'I(', vars, '^2)'
-), paste(
-  'I(', vars, '^3)'
+#), paste(
+#  'I(', vars, '^3)'
 ))
 
 formula <- as.formula(
@@ -227,6 +283,30 @@ mod_step6 <- step_rq_eBIC(
   scope = formula
 )
 
+library(lubridate)
+source('functions.R')
+
+df_dia <- rho_day(mod_step6, mod_step6, df_madrid[jun_ag,])
+df_year <- rho_year(mod_step6, mod_step6, df_madrid[jun_ag,])
+
+plot(1:92, df_dia$rho_l_q0.5, type='l', 
+     main = 'Madrid (Retiro) (días) (armónicos)',
+     ylab = expression(rho[l](tau)), xlab = 'l', ylim = c(0, 1))
+abline(h = 0.5, col = 'red')
+
+plot(1:64, df_year$rho_t_q0.5, type='l', 
+     main = 'Madrid (Retiro) (años) (armónicos)',
+     ylab = expression(rho[t](tau)), xlab = 't', ylim = c(0, 1))
+abline(h = 0.5, col = 'red')
+
+mod <- lm(scale(Y) ~ 1, data = df_madrid)
+plot(unique(df_madrid$t), tapply(mod$residuals, df_madrid$t, mean))
+
+mod <- lm(scale(Y) ~ s.1+c.1+poly(g300,3)*poly(g500,3)*poly(g700,3) +
+            poly(g300_lag,3)*poly(g500_lag,3)*poly(g700_lag,3) 
+          + df_madrid$g300_45_.10[not_28], data = aux)
+plot(unique(aux$t), tapply(mod$residuals, aux$t, mean))
+summary(mod)
 ##----EXTRA---- 
 
 mod_q0.5 <- rq(as.formula(paste('Y ~',paste0('c.', 1:2, ' + s.', 1:2,collapse = '+'))),
