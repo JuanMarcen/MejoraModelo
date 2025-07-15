@@ -98,13 +98,15 @@ g700_g700_lag <- aux$g700 - aux$g700_lag
 g300 <- g300[not_28]
 g500 <- g500[not_28]
 g700 <- g700[not_28]
+g300_g500 <- g300_g500[not_28]
+g300_g700 <- g300_g700[not_28]
 
 # DATA FRAME FINAL: OBS JUNE - AUGUST
 jun_ag <- which(df_madrid$l >= 152 & df_madrid$l <= 243) # months of june and august
 # this subset is the one that may have all the possibe data available
 ind_aux <- match(jun_ag, not_28) # selection of of the values of the residuals in june - august
 df <- df_harm[jun_ag,] %>%
-  select(Y,l,t,c.1,s.1) %>%
+  select(Date, Y, l, t, c.1, s.1) %>%
   mutate(
     g300 = g300[ind_aux],
     g500 = g500[ind_aux],
@@ -120,7 +122,7 @@ df <- df_harm[jun_ag,] %>%
 # After having the data frame we can begin with the construction of a model
 
 #----Step 1: We start with the harmonic model chosen----
-formula <- as.formula(paste('Y ~ c.1 + s.1 +', paste(paste0('scale(',names(df)[6:ncol(df)],')'), collapse = '+')))
+formula <- as.formula(paste('Y ~ c.1 + s.1 +', paste(paste0('scale(',names(df)[7:ncol(df)],')'), collapse = '+')))
 
 mod_step1 <- step_rq_eBIC(
   initial_model = mod_harm,
@@ -151,19 +153,22 @@ lag_res <- data.frame(
   na.omit() %>%
   as.data.frame()
 
-lag_res$l <- lag_res$l - min(lag_res$l) + 1
+
 
 # final data frame for all the following steps
 lags_only <- lag_res %>% select(matches("_lag[123]$"))
 df_final <- cbind(df, lags_only)
 
 # chosen variables after step 1
-vars <- names(mod_step1$coefficients)[2:length(names(mod_step1$coefficients))]
+strip_scale <- function(x) sub("^scale\\((.*)\\)$", "\\1", x)
+vars <- strip_scale(
+  names(mod_step1$coefficients)[2:length(names(mod_step1$coefficients))]
+)
 vars_g_lag1 <- paste0(vars[grepl("^g", vars)], "_lag1")
 
 formula <- as.formula(
   paste('Y ~',
-        paste(c(vars, vars_g_lag1), collapse = '+'))
+        paste(c(vars[1:2], paste0('scale(', c(vars[3:length(vars)], vars_g_lag1), ')')), collapse = '+'))
 )
 
 mod_step2 <- step_rq_eBIC(
@@ -173,13 +178,15 @@ mod_step2 <- step_rq_eBIC(
 )
 
 #----Step 3: Add lag order 2 of those selected with lag order 1----
-vars <- names(mod_step2$coefficients)[2:length(names(mod_step2$coefficients))]
+vars <- strip_scale(
+  names(mod_step2$coefficients)[2:length(names(mod_step2$coefficients))]
+)
 vars_lag1 <- vars[grepl("lag1$", vars)]
 vars_lag2 <- sub("lag1$", "lag2", vars_lag1)
 
 formula <- as.formula(
   paste('Y ~',
-        paste(c(vars, vars_lag2), collapse = '+'))
+        paste(c(vars[1:2], paste0('scale(', c(vars[3:length(vars)], vars_lag2), ')')), collapse = '+'))
 )
 
 mod_step3 <- step_rq_eBIC(
@@ -189,12 +196,14 @@ mod_step3 <- step_rq_eBIC(
 )
 
 #----Step 4: Add lag order 3 of those selected with lag order 2----
-vars <- names(mod_step3$coefficients)[2:length(names(mod_step3$coefficients))]
+vars <- strip_scale(
+  names(mod_step3$coefficients)[2:length(names(mod_step3$coefficients))]
+)
 vars_lag3 <- sub("lag2$", "lag3", vars_lag2)
 
 formula <- as.formula(
   paste('Y ~',
-        paste(c(vars, vars_lag3), collapse = '+'))
+        paste(c(vars[1:2], paste0('scale(', c(vars[3:length(vars)], vars_lag3), ')')), collapse = '+'))
 )
 
 mod_step4 <- step_rq_eBIC(
@@ -205,15 +214,29 @@ mod_step4 <- step_rq_eBIC(
 
 
 #----Step 5: interactions between all variables chosen----
-vars <- names(mod_step4$coefficients)[2:length(names(mod_step4$coefficients))]
-
+vars <- strip_scale(
+  names(mod_step4$coefficients)[2:length(names(mod_step4$coefficients))]
+)
 interactions <- combn(vars,2)
 interactions <- apply(interactions, 2, function(x) paste(x[1], x[2], sep=":"))
 interactions <- interactions[2: length(interactions)]
 
+for (inter in interactions) {
+  # Separar las dos variables que componen la interacción
+  aux <- unlist(strsplit(inter, ":"))
+  var1 <- aux[1]
+  var2 <- aux[2]
+  
+  # Crear un nombre para la nueva variable
+  new_var <- paste0(var1, "_x_", var2)
+  
+  # Calcular la interacción y escalarla
+  df_final[[new_var]] <- df_final[[var1]] * df_final[[var2]]
+}
+
 formula <- as.formula(
   paste('Y ~',
-        paste(c(vars, interactions), collapse = '+'))
+        paste(c(vars[1:2], paste0('scale(', c(vars[3:length(vars)], gsub(':','_x_',interactions)), ')')), collapse = '+'))
 )
 
 mod_step5 <- step_rq_eBIC(
@@ -222,19 +245,19 @@ mod_step5 <- step_rq_eBIC(
   scope = formula
 )
 
-#----Step 6: Polynomials of order 2 and 3 of all the chosen variables----
-vars <- names(mod_step5$coefficients)[4:length(names(mod_step5$coefficients))]
-
+#----Step 6: Polynomials of order 2 ----
+vars <- strip_scale(
+  names(mod_step5$coefficients)[2:length(names(mod_step5$coefficients))]
+)
 polynomials <- c(paste0(
-  'I(', vars, '^2)'
-#), paste(
-#  'I(', vars, '^3)'
+  'I(', vars[3:length(vars)], '^2)'
 ))
 
 formula <- as.formula(
   paste('Y ~',
-        paste(c(vars, polynomials), collapse = '+'))
+        paste(c(vars[1:2], paste0('scale(', c(vars[3:length(vars)], polynomials), ')')), collapse = '+'))
 )
+
 
 mod_step6 <- step_rq_eBIC(
   initial_model = mod_step5,
@@ -242,11 +265,30 @@ mod_step6 <- step_rq_eBIC(
   scope = formula
 )
 
+#----Step 7: Polynomials of order 3 (those chosen for order 2) ----
+vars <- strip_scale(
+  names(mod_step6$coefficients)[2:length(names(mod_step6$coefficients))]
+)
+polynomials <- grep("^I\\(.*\\^2\\)$", vars, value = TRUE)
+polynomials <- gsub("\\^2\\)", "^3)", polynomials) 
+
+formula <- as.formula(
+  paste('Y ~',
+        paste(c(vars[1:2], paste0('scale(', c(vars[3:length(vars)], polynomials), ')')), collapse = '+'))
+)
+
+mod_step7 <- step_rq_eBIC(
+  initial_model = mod_step6,
+  data = df_final,
+  scope = formula
+)
+
+
 library(lubridate)
 source('functions.R')
 
-df_dia <- rho_day(mod_step6, mod_step6, df_madrid[jun_ag,])
-df_year <- rho_year(mod_step6, mod_step6, df_madrid[jun_ag,])
+df_dia <- rho_day(mod_step7, mod_step7, df_madrid[jun_ag,])
+df_year <- rho_year(mod_step7, mod_step7, df_madrid[jun_ag,])
 
 plot(1:92, df_dia$rho_l_q0.5, type='l', 
      main = 'Madrid (Retiro) (días) (armónicos)',

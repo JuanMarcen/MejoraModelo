@@ -23,7 +23,14 @@ my_eBIC<-function(model, gamma, p){
 
 step_rq_eBIC<-function(initial_model, data, scope, 
                        gamma = 0, 
-                       trace = TRUE, harmonics = FALSE){
+                       trace = TRUE, harmonics = FALSE,
+                       replacements = list(
+                         c('g300','g500','g300_g500'),
+                         c('g300','g700','g300_g700')
+                       )){
+
+  # in order to subustract the scale part
+  strip_scale <- function(x) sub("^scale\\((.*)\\)$", "\\1", x)
   
   # size of covariates set
   vars <- labels(terms(scope)) #formula terms
@@ -54,6 +61,7 @@ step_rq_eBIC<-function(initial_model, data, scope,
   steps[[1]] <- list(formula = formula_current, eBIC = best_eBIC)
   
   improved <- TRUE
+  combos_probados <- character(0)
   
   while (improved && length(remaining_vars) > 0){
     improved <- FALSE
@@ -100,11 +108,75 @@ step_rq_eBIC<-function(initial_model, data, scope,
       improved <- TRUE
       
       if (trace){
-        cat("Added:", best_var, "| eBIC =", round(best_eBIC, 2), "\n")
+        cat("Added:", strip_scale(best_var), "| eBIC =", round(best_eBIC, 2), "\n")
       }
     }
     
+    if (improved && length(replacements) > 0){
+      for (combo in replacements){
+        v1 <- as.character(combo[1])
+        v2 <- as.character(combo[2])
+        v1_v2 <- as.character(combo[3])
+      
+      # check if v1 and v2 in selected vars
+      if (all(c(v1, v2) %in% strip_scale(selected_vars)) && 
+          v1_v2 %in% strip_scale(vars)){
+        
+        combo_id <- v1_v2
+        if (combo_id %in% combos_probados){
+          next
+        }
+        
+        new_selected <- setdiff(selected_vars, paste0('scale(', c(v1,v2), ')'))
+        new_selected <- c(new_selected, paste0('scale(', v1_v2, ')'))
+        
+        formula_try <- as.formula(
+          paste(response, '~', paste(new_selected, collapse = '+'))
+        )
+        
+        model_try <- tryCatch(
+          rq(formula_try, data = data, tau = tau),
+          error = function(e) NULL
+        )
+        
+        if (!is.null(model_try)){
+          eBIC_val <- my_eBIC(model_try, gamma, p)
+          
+          combos_probados <- c(combos_probados, combo_id)
+          
+          if(eBIC_val < best_eBIC){
+            if (trace){
+              cat("Reemplazando",
+                  paste0(strip_scale(v1), "y", strip_scale(v2)),
+                  "→", strip_scale(v1_v2),
+                  "| eBIC mejora a", round(eBIC_val, 2), "\n")
+            }
+            
+            # actualizar estado
+            selected_vars  <- new_selected
+            remaining_vars <- setdiff(vars, selected_vars)
+            model_current  <- model_try
+            formula_current<- formula_try
+            best_eBIC      <- eBIC_val
+            
+            # Forzar que el bucle vuelva a empezar con
+            # el nuevo conjunto (por si hay más mejoras)
+            improved <- TRUE
+            break 
+            
+          }else{
+            cat('Reemplazamiento por ', v1_v2, ' no mejora ', '\n')
+          }
+          
+          }
+        }
+      
+      }
+        
+    }
+    
   }
+    
   
   # eBIC
   model_current$eBIC <- best_eBIC
