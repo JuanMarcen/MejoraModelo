@@ -1,7 +1,9 @@
 rm(list=ls())
 
+
 #df_conj_filled_sc <- readRDS("C:/Users/jumar/OneDrive/Escritorio/TFM/Datos/df_conj_filled_sc.rds")
 df_conj_filled_sc <- readRDS("C:/Users/jumar/OneDrive/Escritorio/TFM/Datos/df_conj_filled_sc_lag.rds")
+
 #Y <- readRDS("C:/Users/jumar/OneDrive/Escritorio/TFM/Datos/Y.rds")
 Y <- readRDS("C:/Users/jumar/OneDrive/Escritorio/TFM/Datos/Y_lag.rds")
 
@@ -10,8 +12,8 @@ ind <- which(Y$station==230)
 df_madrid <- df_conj_filled_sc[ind,]
 
 source('harmonics.R')
-df_harm <- as.data.frame(cbind(df_madrid, cs(df_madrid$l, 1:10)))
-colnames(df_harm)[1] <- 'Y'
+df_harm <- as.data.frame(cbind(df_madrid, scale(cs(df_madrid$l, 1:2))))
+colnames(df_harm)[3] <- 'Y'
 
 source('eBIC.R')
 mod_nulo_q0.5 <- rq(Y~1, tau= 0.5, data = df_harm)
@@ -20,122 +22,85 @@ mod_nulo_q0.95 <- rq(Y~1, tau= 0.95, data = df_harm)
 #----Harmonics----
 mod_harm <- step_rq_eBIC(
   mod_nulo_q0.5, data = df_harm,
-  scope = as.formula(paste('Y ~',paste0('c.', 1:5, ' + s.', 1:5,collapse = '+'))),
+  scope = as.formula(paste('Y ~',paste0('c.', 1:2, ' + s.', 1:2,collapse = '+'))),
   gamma = 0,
   harmonics = TRUE
 ) 
-
-# my_eBIC(mod_nulo_q0.95,gamma = 1, 10)
-# for (i in 1:5){
-#   mod <- rq(as.formula(paste('Y ~',paste0('c.', 1:i, ' + s.', 1:i,collapse = '+'))),
-#             data = df_harm, tau = 0.95)
-#   cat('armonico',i,'eBIC:',my_eBIC(mod,gamma = 1,p = 10),
-#       'R1:',1-mod$rho/mod_nulo_q0.95$rho , '\n' )
-# }
 
 # After this, we know we need harmonics of order 1
 
 #----Next step: Create the df with all the needed data as Jorge said----
 library(dplyr)
 
-# Period of reference 1991-2020 (t: 32-61) nad without 28th may
-ref_not_28 <- which(df_madrid$t >= 22 & df_madrid$t <= 51 & df_madrid$l >=2)
-not_28 <- which(df_madrid$l >= 2)
+# Period of reference 1981-2010 (t: 22-51) and without 28th may
+ind_jja <- which(df_madrid$t >= 22 & df_madrid$t <= 51 & df_madrid$l >= 152)
+not_28 <- which(df_madrid$l >= 149)
 
 # g300 residuals (substract obs of 28th may)
-mod <- lm(g300 ~ s.1 + c.1, data = df_harm, subset = ref_not_28)
+mod <- lm(g300 ~ s.1 + c.1, data = df_harm, subset = ind_jja)
 preds <- predict(mod, newdata = data.frame(
-  c.1 = df_harm$c.1[not_28],
-  s.1 = df_harm$s.1[not_28]
+  c.1 = df_harm$c.1,
+  s.1 = df_harm$s.1
 ))
 
-g300 <- df_madrid$g300[not_28] - preds
-g300 <- scale(g300)
+g300 <- df_madrid$g300 - preds
 
 #g500 res
-mod <- lm(g500 ~ s.1 + c.1, data = df_harm, subset = ref_not_28)
+mod <- lm(g500 ~ s.1 + c.1, data = df_harm, subset = ind_jja)
 preds <- predict(mod, newdata = data.frame(
-  c.1 = df_harm$c.1[not_28],
-  s.1 = df_harm$s.1[not_28]
+  c.1 = df_harm$c.1,
+  s.1 = df_harm$s.1
 ))
 
-g500 <- df_madrid$g500[not_28] - preds
-g500 <- scale(g500)
+g500 <- df_madrid$g500 - preds
 
 #g700 res
-mod <- lm(g700 ~ s.1 + c.1, data = df_harm, subset = ref_not_28)
+mod <- lm(g700 ~ s.1 + c.1, data = df_harm, subset = ind_jja)
 preds <- predict(mod, newdata = data.frame(
-  c.1 = df_harm$c.1[not_28],
-  s.1 = df_harm$s.1[not_28]
+  c.1 = df_harm$c.1,
+  s.1 = df_harm$s.1
 ))
 
-g700 <- df_madrid$g700[not_28] - preds
-g700 <- scale(g700)
+g700 <- df_madrid$g700 - preds
+
 
 #g300-g500 res
-mod <- lm(g300 - g500 ~ s.1 + c.1, data = df_harm, subset = ref_not_28)
-preds <- predict(mod, newdata = data.frame(
-  c.1 = df_harm$c.1[not_28],
-  s.1 = df_harm$s.1[not_28]
-))
-
-g300_g500 <- df_madrid$g300[not_28] - df_madrid$g500[not_28] - preds
-g300_g500 <- scale(g300_g500)
-
 g300_g500 <- g300 - g500
 
 #g300-g700 res
-mod <- lm(g300 - g700 ~ s.1 + c.1, data = df_harm, subset = ref_not_28)
-preds <- predict(mod, newdata = data.frame(
-  c.1 = df_harm$c.1[not_28],
-  s.1 = df_harm$s.1[not_28]
-))
-
-g300_g700 <- df_madrid$g300[not_28] - df_madrid$g700[not_28] - preds
-g300_g700 <- scale(g300_g700)
-
 g300_g700 <- g300 - g700
 
 #g300-g300_lag
-aux <- df_harm[, c('Y','c.1', 's.1', 'g300', 'g500', 'g700', 't', 'l')] %>% 
-  group_by(t) %>% 
+aux <- data.frame(
+  t = df_madrid$t,
+  l = df_madrid$l,
+  g300 = g300,
+  g500 = g500,
+  g700 = g700
+)
+
+aux <- aux %>%
+  group_by(t) %>%
   mutate(across(c(g300,g500,g700),
                 .fns = ~lag(.),
                 .names = '{.col}_lag')) %>%
   as.data.frame() %>% na.omit()
 
-mod <- lm(g300 - g300_lag ~ s.1 + c.1, data = aux, subset = ref_not_28)
-preds <- predict(mod, newdata = data.frame(
-  c.1 = df_harm$c.1[not_28],
-  s.1 = df_harm$s.1[not_28]
-))
-
-g300_g300_lag <- aux$g300 - aux$g300_lag - preds
-g300_g300_lag <- scale(g300_g300_lag)
+g300_g300_lag <- aux$g300 - aux$g300_lag
 
 #g500-g500_lag
-mod <- lm(g500 - g500_lag ~ s.1 + c.1, data = aux, subset = ref_not_28)
-preds <- predict(mod, newdata = data.frame(
-  c.1 = df_harm$c.1[not_28],
-  s.1 = df_harm$s.1[not_28]
-))
-
-g500_g500_lag <- aux$g500 - aux$g500_lag - preds
-g500_g500_lag <- scale(g500_g500_lag)
+g500_g500_lag <- aux$g500 - aux$g500_lag
 
 #g700-g700_lag
-mod <- lm(g700 - g700_lag ~ s.1 + c.1, data = aux, subset = ref_not_28)
-preds <- predict(mod, newdata = data.frame(
-  c.1 = df_harm$c.1[not_28],
-  s.1 = df_harm$s.1[not_28]
-))
+g700_g700_lag <- aux$g700 - aux$g700_lag
 
-g700_g700_lag <- aux$g700 - aux$g700_lag - preds
-g700_g700_lag <- scale(g700_g700_lag)
-
+#substract observation of day 28th may
+g300 <- g300[not_28]
+g500 <- g500[not_28]
+g700 <- g700[not_28]
 
 # DATA FRAME FINAL: OBS JUNE - AUGUST
-jun_ag <- which(df_madrid$l >= 5 & df_madrid$l <= 96) # months of june and august
+jun_ag <- which(df_madrid$l >= 152 & df_madrid$l <= 243) # months of june and august
 # this subset is the one that may have all the possibe data available
 ind_aux <- match(jun_ag, not_28) # selection of of the values of the residuals in june - august
 df <- df_harm[jun_ag,] %>%
@@ -152,16 +117,10 @@ df <- df_harm[jun_ag,] %>%
   ) %>%
   as.data.frame()
 
-
-# recalculation of harmonics
-df$l <- df$l - min(df$l) + 1 # 1 == 1 jun, 92 == 31 aug
-df$c.1 <- cs(df$l, 1)[, 1]
-df$s.1 <- cs(df$l, 1)[, 2]
-
 # After having the data frame we can begin with the construction of a model
 
 #----Step 1: We start with the harmonic model chosen----
-formula <- as.formula(paste('Y ~', paste(names(df)[4:ncol(df)], collapse = '+')))
+formula <- as.formula(paste('Y ~ c.1 + s.1 +', paste(paste0('scale(',names(df)[6:ncol(df)],')'), collapse = '+')))
 
 mod_step1 <- step_rq_eBIC(
   initial_model = mod_harm,
