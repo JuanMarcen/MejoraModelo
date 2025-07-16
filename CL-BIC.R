@@ -1,34 +1,53 @@
-# Extendeded BIC (eBIC) for quantile regression models
+# CL-BIC
 
-# obtained with 'rq'
-
-# generalize to bayesian models
-library(quantreg)
-
-my_eBIC<-function(model, gamma, p){
+log_lik_rq <- function(model){
   
   loss <- model$rho
-  
+  tau <- model$tau
   n <- length(model$fitted.values)
-  k <- length(coef(model)) - 1
-
   
-  eBIC <- 2 * n * log((1 / n) * loss) + k * log(n) + 2 * gamma * log(choose(p,k))
-  #AIC <- - 2 * n * log (0.5*0.5) +  2*n*log((1/n)*loss) + 2*n + k*2
+  loglik <- n * log(tau * (1 - tau)) - n * log( (1 / n) * loss) - n
   
-  return(eBIC)
-  
+  return(loglik)
 }
 
+logCL_rq <- function(weights, logliks){
+  logCL <- sum(weights * logliks)
+  return(logCL)
+}
 
-step_rq_eBIC<-function(initial_model, data, scope, 
+CLBIC <- function(models, gamma = 0, p = 100){
+  
+  loglik <- numeric(length(models))
+  logCL <- numeric()
+  
+  for (i in 1:length(models)){
+    loglik[i] <- log_lik_rq(models[[i]])
+    #cat('modelo',i,'\t',loglik[i],'\n')
+  }
+  
+  logCL <- logCL_rq(1, loglik)
+  cat('logCL', logCL ,'\n')
+  # supposedly the models have the same amount of parameters and observations
+  n <- length(models[[1]]$fitted.values)
+  k <- length(coef(models[[1]])) - 1
+  cat(n,k,'\n')
+  
+  
+  CLBIC <- -2 * logCL + k * log(n) + 2 * gamma * log(choose(p,k))
+  
+  
+  return(CLBIC)
+}
+
+step_rq_CLBIC<-function(initial_model, data, scope, 
                        gamma = 0, 
                        trace = TRUE, harmonics = FALSE,
                        replacements = list(
                          c('g300','g500','g300_g500'),
                          c('g300','g700','g300_g700')
                        )){
-
+  
   # in order to subustract the scale part
   strip_scale <- function(x) sub("^scale\\((.*)\\)$", "\\1", x)
   
@@ -117,66 +136,66 @@ step_rq_eBIC<-function(initial_model, data, scope,
         v1 <- as.character(combo[1])
         v2 <- as.character(combo[2])
         v1_v2 <- as.character(combo[3])
-      
-      # check if v1 and v2 in selected vars
-      if (all(c(v1, v2) %in% strip_scale(selected_vars)) && 
-          v1_v2 %in% strip_scale(vars)){
         
-        combo_id <- v1_v2
-        if (combo_id %in% combos_probados){
-          next
-        }
-        
-        new_selected <- setdiff(selected_vars, paste0('scale(', c(v1,v2), ')'))
-        new_selected <- c(new_selected, paste0('scale(', v1_v2, ')'))
-        
-        formula_try <- as.formula(
-          paste(response, '~', paste(new_selected, collapse = '+'))
-        )
-        
-        model_try <- tryCatch(
-          rq(formula_try, data = data, tau = tau),
-          error = function(e) NULL
-        )
-        
-        if (!is.null(model_try)){
-          eBIC_val <- my_eBIC(model_try, gamma, p)
+        # check if v1 and v2 in selected vars
+        if (all(c(v1, v2) %in% strip_scale(selected_vars)) && 
+            v1_v2 %in% strip_scale(vars)){
           
-          combos_probados <- c(combos_probados, combo_id)
+          combo_id <- v1_v2
+          if (combo_id %in% combos_probados){
+            next
+          }
           
-          if(eBIC_val < best_eBIC){
-            if (trace){
-              cat("Reemplazando",
-                  paste0(strip_scale(v1), "y", strip_scale(v2)),
-                  "→", strip_scale(v1_v2),
-                  "| eBIC mejora a", round(eBIC_val, 2), "\n")
+          new_selected <- setdiff(selected_vars, paste0('scale(', c(v1,v2), ')'))
+          new_selected <- c(new_selected, paste0('scale(', v1_v2, ')'))
+          
+          formula_try <- as.formula(
+            paste(response, '~', paste(new_selected, collapse = '+'))
+          )
+          
+          model_try <- tryCatch(
+            rq(formula_try, data = data, tau = tau),
+            error = function(e) NULL
+          )
+          
+          if (!is.null(model_try)){
+            eBIC_val <- my_eBIC(model_try, gamma, p)
+            
+            combos_probados <- c(combos_probados, combo_id)
+            
+            if(eBIC_val < best_eBIC){
+              if (trace){
+                cat("Reemplazando",
+                    paste0(strip_scale(v1), "y", strip_scale(v2)),
+                    "→", strip_scale(v1_v2),
+                    "| eBIC mejora a", round(eBIC_val, 2), "\n")
+              }
+              
+              # actualizar estado
+              selected_vars  <- new_selected
+              remaining_vars <- setdiff(vars, selected_vars)
+              model_current  <- model_try
+              formula_current<- formula_try
+              best_eBIC      <- eBIC_val
+              
+              # Forzar que el bucle vuelva a empezar con
+              # el nuevo conjunto (por si hay más mejoras)
+              improved <- TRUE
+              break 
+              
+            }else{
+              cat('Reemplazamiento por ', v1_v2, ' no mejora ', '\n')
             }
             
-            # actualizar estado
-            selected_vars  <- new_selected
-            remaining_vars <- setdiff(vars, selected_vars)
-            model_current  <- model_try
-            formula_current<- formula_try
-            best_eBIC      <- eBIC_val
-            
-            # Forzar que el bucle vuelva a empezar con
-            # el nuevo conjunto (por si hay más mejoras)
-            improved <- TRUE
-            break 
-            
-          }else{
-            cat('Reemplazamiento por ', v1_v2, ' no mejora ', '\n')
-          }
-          
           }
         }
-      
-      }
         
+      }
+      
     }
     
   }
-    
+  
   
   # eBIC
   model_current$eBIC <- best_eBIC
@@ -203,5 +222,3 @@ step_rq_eBIC<-function(initial_model, data, scope,
   
   return(model_current)
 }
-
-
