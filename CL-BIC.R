@@ -222,3 +222,5 @@ step_rq_CLBIC<-function(initial_model, data, scope,
   
   return(model_current)
 }
+
+print('hola')
