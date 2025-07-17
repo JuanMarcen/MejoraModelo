@@ -40,7 +40,7 @@ CLBIC <- function(models, gamma = 0, p = 100){
   return(CLBIC)
 }
 
-step_rq_CLBIC<-function(initial_model, data, scope, 
+step_rq_CLBIC<-function(initial_models, data, scope, 
                        gamma = 0, 
                        trace = TRUE, harmonics = FALSE,
                        replacements = list(
@@ -76,8 +76,6 @@ step_rq_CLBIC<-function(initial_model, data, scope,
   #print(selected_vars)
   remaining_vars <- setdiff(vars, selected_vars)
   #print(remaining_vars)
-  steps <- list()
-  steps[[1]] <- list(formula = formula_current, eBIC = best_eBIC)
   
   improved <- TRUE
   combos_probados <- character(0)
@@ -223,4 +221,3 @@ step_rq_CLBIC<-function(initial_model, data, scope,
   return(model_current)
 }
 
-print('hola')
