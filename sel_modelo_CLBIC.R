@@ -87,7 +87,16 @@ for (g in c('g300','g500', 'g700')){
 jun_ag <- which(df_final$l >= 152)
 df_jun_ag <- df_final[jun_ag, ] #this dataframe is the one we use to fit the models
 
-#----Step 0: initial models (only harmonics)----
+#----Step 0: null models and initial models (only harmonics)----
+models_null <- list()
+for (i in 1:dim(stations)[1]){
+  ind <- which(df_jun_ag$station == stations$STAID[i])
+  mod_null <- suppressWarnings(
+    rq(Y ~ 1, tau = 0.50, data = df_jun_ag, subset = ind)
+  )
+  models_null[[as.character(stations$STAID[i])]] <- mod_null
+}
+
 harmonics <- c('c.1', 's.1')
 
 formula <- as.formula(paste('Y ~', paste(harmonics, collapse = '+')))
@@ -97,12 +106,12 @@ models_harmonics <- list()
 for (i in 1:dim(stations)[1]){
   ind <- which(df_jun_ag$station == stations$STAID[i])
   mod <- rq(formula, tau = 0.50, data = df_jun_ag, subset = ind)
-  mod_null <- rq(Y ~ 1, tau = 0.50, data = df_jun_ag, subset = ind)
-  mod$R1 <- 1 - mod$rho / mod_null$rho
-  models_harmonics[[i]] <- mod
+  mod$R1 <- 1 - mod$rho / models_null[[as.character(stations$STAID[i])]]$rho
+  models_harmonics[[as.character(stations$STAID[i])]] <- mod
 }
 
 #----Step 1: variables or the air column in each station (8)----
+source('CL-BIC.R')
 vars_air_column <- c(
   'g300', 'g500', 'g700',
   'g300_g500', 'g300_g700',
@@ -110,7 +119,13 @@ vars_air_column <- c(
 )
 
 formula <- as.formula(
-  paste('Y ~ c.1 + s.1 +', 
-        paste(vars_air_column, collapse = '+')))
+  paste('Y ~', 
+        paste(c(harmonics, vars_air_column), collapse = '+')))
 
-
+mod_step1 <- step_rq_CLBIC(
+  initial_models = models_harmonics,
+  null_models = models_null,
+  data = df_jun_ag,
+  stations = stations,
+  scope = formula
+)
