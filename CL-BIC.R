@@ -1,4 +1,27 @@
 # CL-BIC
+library(quantreg)
+library(sf)
+library(sp)
+
+exp_weights <- function(dist_matrix, h, scale = TRUE){
+  
+  dist_matrix <- dist_matrix / h
+  
+  dist_kernel <- exp(-dist_matrix)
+  
+  w <- numeric()
+  
+  for (i in 1:dim(stations)[1]){
+    w[i] <- 1 / sum(dist_kernel[i, ])
+  }
+  
+  if (scale == TRUE){
+    n <- dim(dist_matrix)[1]
+    w <- n * w / sum(w) 
+  }
+  
+  return(w)
+}
 
 log_lik_rq <- function(model){
   
@@ -11,7 +34,7 @@ log_lik_rq <- function(model){
   return(loglik)
 }
 
-logCL_rq <- function(weights, logliks){
+logCL_rq <- function(weights = 1, logliks){
   logCL <- sum(weights * logliks)
   
   return(logCL)

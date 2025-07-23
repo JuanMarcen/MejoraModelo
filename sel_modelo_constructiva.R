@@ -12,7 +12,7 @@ ind <- which(Y$station==230)
 df_madrid <- df_conj_filled_sc[ind,] # original data frame
 
 source('harmonics.R')
-df_harm <- as.data.frame(cbind(df_madrid, scale(cs(df_madrid$l, 1:2))))
+df_harm <- as.data.frame(cbind(df_madrid, cs(df_madrid$l, 1:2)))
 colnames(df_harm)[3] <- 'Y'
 
 source('eBIC.R')
@@ -105,7 +105,7 @@ df <- df_harm[jun_ag,] %>%
 # After having the data frame we can begin with the construction of a model
 
 #----Step 1: We start with the harmonic model chosen----
-formula <- as.formula(paste('Y ~ c.1 + s.1 +', paste(paste0('scale(',names(df)[7:ncol(df)],')'), collapse = '+')))
+formula <- as.formula(paste('Y ~ scale(c.1) + scale(s.1) +', paste(paste0('scale(',names(df)[7:ncol(df)],')'), collapse = '+')))
 
 mod_step1 <- step_rq_eBIC(
   initial_model = mod_harm,
@@ -323,12 +323,16 @@ corners_df_final <- df_harm[jun_ag,] %>%
   select(Date, Y, l, t, c.1, s.1) %>%
   bind_cols(corners_df[ind_aux,]) %>%
   as.data.frame()
+df <- cbind(corners_df_final, df[,7:ncol(df)])
 
-# Step 1
-formula <- as.formula(paste('Y ~ c.1 + s.1 +', paste(paste0('scale(',names(corners_df_final)[7:ncol(corners_df_final)],')'), collapse = '+')))
-mod_step1 <- step_rq_eBIC(
-  initial_model = mod_harm,
-  data = corners_df_final,
+# Step 8
+formula <- as.formula(
+  paste('Y ~', 
+        paste(vars_air_column, collapse = '+'), ' + ', 
+        paste(paste0('scale(',names(corners_df_final)[7:ncol(corners_df_final)],')'), collapse = '+')))
+mod_step8 <- step_rq_eBIC(
+  initial_model = mod_step7,
+  data = df,
   scope = formula,
   replacements = list(
     c('g300_45_.10','g500_45_.10','g300_45_.10_g500_45_.10'),
@@ -365,13 +369,14 @@ lag_res <- lag_res %>%
 
 # final data frame for all the following steps
 lags_only <- lag_res %>% select(matches("_lag[123]$"))
-corners_df_final <- cbind(corners_df_final, lags_only)
+df_final <- cbind(df_final, lags_only)
 
 # chosen variables after step 1
 strip_scale <- function(x) sub("^scale\\((.*)\\)$", "\\1", x)
 vars <- strip_scale(
-  names(mod_step1$coefficients)[2:length(names(mod_step1$coefficients))]
+  names(mod_step8$coefficients)[2:length(names(mod_step8$coefficients))]
 )
+vars <- setdiff(vars, vars_air_column)
 vars_g_lag1 <- paste0(vars[grepl("^g", vars)], "_lag1")
 
 formula <- as.formula(
@@ -550,6 +555,12 @@ save(
   vars_final,
   file = 'data_q0.5_madrid.RData'
 )
+
+
+##
+formula <- as.formula(paste('Y ~', paste(vars_air_column, collapse = '+')))
+mod <- rq(formula, data = DF_FINAL)
+1 -mod$rho/mod_nulo_q0.5$rho
 
 #----EXTRA----
 library(lubridate)

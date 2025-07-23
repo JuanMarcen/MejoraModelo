@@ -129,3 +129,41 @@ mod_step1 <- step_rq_CLBIC(
   stations = stations,
   scope = formula
 )
+
+# with different weights
+stations <- st_transform(
+  as(
+    SpatialPointsDataFrame(
+      coords = stations[c("LON", "LAT")], 
+      data = stations[c("STAID", "STANAME", "LON", "LAT", "HGHT","color",'NAME1','NAME2')],
+      proj4string = CRS("+proj=longlat +datum=WGS84 +ellps=WGS84 +towgs84=0,0,0")),
+    'sf'
+  ),
+  2062
+)
+
+coords_km <- st_coordinates(stations) / 1000
+dist <- as.matrix(dist(coords_km))
+
+w <- exp_weights(dist, h = mean(dist), scale = TRUE)
+names(w) <- stations$NAME2
+
+mod_step1_2 <- step_rq_CLBIC(
+  initial_models = models_harmonics,
+  null_models = models_null,
+  data = df_jun_ag,
+  stations = stations,
+  scope = formula,
+  weights = w
+)
+
+
+# comparison of R1 
+mod1 <- numeric()
+mod2 <- numeric()
+for (i in as.character(stations$STAID)){
+  mod1[i] <- mod_step1[["models"]][[i]][["R1"]]
+  mod2[i] <- mod_step1_2[["models"]][[i]][["R1"]]
+}
+
+comp_R1 <- cbind(mod1, mod2, mod1 - mod2)
