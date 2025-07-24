@@ -179,6 +179,246 @@ step_rq_CLBIC<-function(initial_models,
       models_solution <- models[[best_var]]
     }
     
+    if (improved && length(replacements) > 0){
+      for (combo in replacements){
+        v1 <- as.character(combo[1])
+        v2 <- as.character(combo[2])
+        v1_v2 <- as.character(combo[3])
+        
+        # check if v1 and v2 in selected vars
+        if (all(c(v1, v2) %in% strip_scale(selected_vars)) && 
+            v1_v2 %in% strip_scale(vars)){
+          
+          cat('1', '\n')
+          
+          combo_id <- v1_v2
+          if (combo_id %in% combos_probados){
+            next
+          }
+          
+          # new_selected <- setdiff(selected_vars, paste0('scale(', c(v1,v2), ')'))
+          # new_selected <- c(new_selected, paste0('scale(', v1_v2, ')'))
+          
+          new_selected <- setdiff(selected_vars, c(v1,v2))
+          new_selected <- c(new_selected, v1_v2)
+          
+          models_stations <- list()
+          
+          formula_try <- as.formula(
+            paste(response, '~', paste(new_selected, collapse = '+'))
+          )
+          
+          for (i in 1:dim(stations)[1]){
+            ind <- which(data$station == stations$STAID[i])
+            model_try <- tryCatch(
+              rq(formula_try, data = data, subset = ind, tau = tau),
+              error = function(e) return(NULL)
+            )
+            
+            if (is.null(model_try)) {
+              if (trace) cat("Saltando variable (error en ajuste):", var, '\n',
+                             'Cometido en la estación', stations$STAID[i], "\n")
+              error_occurred <- TRUE
+              break
+            }
+            
+            model_try$R1 <- 1 - model_try$rho / null_models[[i]]$rho
+            models_stations[[as.character(stations$STAID[i])]] <- model_try
+          }
+          
+          if (error_occurred != TRUE){
+            CLBIC_val <- CLBIC(models_stations, weights, gamma, p)
+            
+            combos_probados <- c(combos_probados, combo_id)
+            
+            if(CLBIC_val < best_CLBIC){
+              if (trace){
+                cat("Reemplazando",
+                    paste0(strip_scale(v1), "y", strip_scale(v2)),
+                    "→", strip_scale(v1_v2),
+                    "| CLBIC mejora a", round(CLBIC_val, 2), "\n")
+              }
+              
+              # actualizar estado
+              selected_vars  <- new_selected
+              remaining_vars <- setdiff(vars, selected_vars)
+              models[[best_var]] <- list(models = models_stations, 
+                                         formula = formula_try, 
+                                         CLBIC = CLBIC_val)
+              model_current <- models[[best_var]]$models[[1]][1]
+              formula_current <- models[[best_var]]$formula
+              best_CLBIC <- CLBIC_val
+              
+              # Forzar que el bucle vuelva a empezar con
+              # el nuevo conjunto (por si hay más mejoras)
+              improved <- TRUE
+              models_solution <- models[[best_var]]
+              break 
+              
+            }else{
+              cat('Reemplazamiento por ', v1_v2, ' no mejora', '\n')
+            }
+            
+          }else{
+            cat('Reemplazamiento por ', v1_v2, ' hay error', '\n')
+          }
+        }
+        
+        if (all(c(v1_v2, v1) %in% strip_scale(selected_vars)) && 
+            v2 %in% strip_scale(vars)){
+          
+          cat('2', '\n')
+          
+          combo_id <- v1_v2
+          if (combo_id %in% combos_probados){
+            next
+          }
+          
+          # new_selected <- setdiff(selected_vars, paste0('scale(', c(v1,v2), ')'))
+          # new_selected <- c(new_selected, paste0('scale(', v1_v2, ')'))
+          
+          new_selected <- setdiff(selected_vars, c(v1_v2))
+          new_selected <- c(new_selected, v2)
+          cat(new_selected, '\n')
+          
+          models_stations <- list()
+          
+          formula_try <- as.formula(
+            paste(response, '~', paste(new_selected, collapse = '+'))
+          )
+          
+          for (i in 1:dim(stations)[1]){
+            ind <- which(data$station == stations$STAID[i])
+            model_try <- tryCatch(
+              rq(formula_try, data = data, subset = ind, tau = tau),
+              error = function(e) return(NULL)
+            )
+            
+            if (is.null(model_try)) {
+              if (trace) cat("Saltando variable (error en ajuste):", var, '\n',
+                             'Cometido en la estación', stations$STAID[i], "\n")
+              error_occurred <- TRUE
+              break
+            }
+            
+            model_try$R1 <- 1 - model_try$rho / null_models[[i]]$rho
+            models_stations[[as.character(stations$STAID[i])]] <- model_try
+          }
+          
+          if (error_occurred != TRUE){
+            CLBIC_val <- CLBIC(models_stations, weights, gamma, p)
+            
+            combos_probados <- c(combos_probados, combo_id)
+            
+            if (trace){
+              cat("Reemplazando",
+                  paste0(strip_scale(v1_v2)),
+                  "→", strip_scale(v2),
+                  "| CLBIC cambia a", round(CLBIC_val, 2), "\n")
+            }
+            
+            # actualizar estado
+            selected_vars  <- new_selected
+            remaining_vars <- setdiff(vars, selected_vars)
+            models[[best_var]] <- list(models = models_stations, 
+                                       formula = formula_try, 
+                                       CLBIC = CLBIC_val)
+            model_current <- models[[best_var]]$models[[1]][1]
+            formula_current <- models[[best_var]]$formula
+            best_CLBIC <- CLBIC_val
+            
+            # Forzar que el bucle vuelva a empezar con
+            # el nuevo conjunto (por si hay más mejoras)
+            improved <- TRUE
+            models_solution <- models[[best_var]]
+            break 
+            
+          }else{
+            cat('Reemplazamiento por ', v2, ' hay error', '\n')
+        
+        }
+        }
+        
+        if (all(c(v1_v2, v2) %in% strip_scale(selected_vars)) && 
+            v1 %in% strip_scale(vars)){
+          
+          cat('3', '\n')
+          
+          combo_id <- v1_v2
+          if (combo_id %in% combos_probados){
+            next
+          }
+          
+          # new_selected <- setdiff(selected_vars, paste0('scale(', c(v1,v2), ')'))
+          # new_selected <- c(new_selected, paste0('scale(', v1_v2, ')'))
+          
+          new_selected <- setdiff(selected_vars, c(v1_v2))
+          new_selected <- c(new_selected, v1)
+          cat(new_selected, '\n')
+          
+          models_stations <- list()
+          
+          formula_try <- as.formula(
+            paste(response, '~', paste(new_selected, collapse = '+'))
+          )
+          
+          for (i in 1:dim(stations)[1]){
+            ind <- which(data$station == stations$STAID[i])
+            model_try <- tryCatch(
+              rq(formula_try, data = data, subset = ind, tau = tau),
+              error = function(e) return(NULL)
+            )
+            
+            if (is.null(model_try)) {
+              if (trace) cat("Saltando variable (error en ajuste):", var, '\n',
+                             'Cometido en la estación', stations$STAID[i], "\n")
+              error_occurred <- TRUE
+              break
+            }
+            
+            model_try$R1 <- 1 - model_try$rho / null_models[[i]]$rho
+            models_stations[[as.character(stations$STAID[i])]] <- model_try
+          }
+          
+          if (error_occurred != TRUE){
+            CLBIC_val <- CLBIC(models_stations, weights, gamma, p)
+            
+            combos_probados <- c(combos_probados, combo_id)
+            
+            if (trace){
+              cat("Reemplazando",
+                  paste0(strip_scale(v1_v2)),
+                  "→", strip_scale(v1),
+                  "| CLBIC cambia a", round(CLBIC_val, 2), "\n")
+            }
+            
+            # actualizar estado
+            selected_vars  <- new_selected
+            remaining_vars <- setdiff(vars, selected_vars)
+            models[[best_var]] <- list(models = models_stations, 
+                                  formula = formula_try, 
+                                  CLBIC = CLBIC_val)
+            model_current <- models[[best_var]]$models[[1]][1]
+            formula_current <- models[[best_var]]$formula
+            best_CLBIC <- CLBIC_val
+            
+            # Forzar que el bucle vuelva a empezar con
+            # el nuevo conjunto (por si hay más mejoras)
+            improved <- TRUE
+            
+            models_solution <- models[[best_var]]
+            break 
+            
+          }else{
+            cat('Reemplazamiento por ', v1, ' hay error', '\n')
+            
+          }
+        }
+      
+    }
+    
+    }
+    
   }
   
   
