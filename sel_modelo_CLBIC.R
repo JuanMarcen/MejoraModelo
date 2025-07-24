@@ -37,7 +37,7 @@ for (i in 1:dim(stations)[1]){
 }
 
 # diferencias de anomalias
-not_28 <- not_28 <- which(df_harm$l >= 149)
+not_28 <- which(df_harm$l >= 149)
 df_final <- df_harm[not_28, ]
 
 corners <- c('','_45_.10', '_45_5', '_35_.10', '_35_5')
@@ -79,6 +79,7 @@ aux <- aux %>%
 
 for (g in c('g300','g500', 'g700')){
   for (c in corners){
+    df_final[[paste0(g, c, '_lag')]] <- aux[[paste0(g, c, '_lag')]]
     df_final[[paste0(g, c , '_', g, c, '_lag')]] <- aux[[paste0(g, c)]] - aux[[paste0(g, c, '_lag')]]
   }
 }
