@@ -41,7 +41,77 @@ logCL_rq <- function(weights = 1, logliks){
   return(logCL)
 }
 
-CLBIC <- function(models, weights = 1, gamma = 0, p = 100){
+eff_number_param <- function(models, weights = 1){
+  
+  # Computation of sensitivity matrix H
+  # tau and n are the same for every station
+  tau <- models[[1]]$tau
+  n <- length(models[[1]]$fitted.values)
+  num_coef <- length(models[[1]]$coefficients)
+  H <- matrix(0, ncol = num_coef, nrow = num_coef)
+  # sigmas for each model
+  sigmas <- numeric()
+  for (i in 1:dim(stations)[1]){
+    #sigma = 1/n * loss(beta)
+    model <- models[[i]]
+    n <- length(model$fitted.values)
+    sigmas[i] <- model$rho / n
+  }
+  # x_tl(s_i) %*% t(x_tl(s_i)) the same for each station also
+  X_H <- list()
+  for (i in 1:dim(stations)[1]){
+    model <- models[[i]]
+    
+    x <- matrix(0, ncol = num_coef, nrow = num_coef)
+    for (tl in 1:n){
+      x <- x +  (tau * (1 - tau) / sigmas[i]^2) * model$x[tl, ] %*% t(model$x[tl, ])
+    }
+    
+    X_H[[as.character(stations$STAID[i])]] <- x
+  }
+  
+  # I need the weights (argument)
+  if (length(weights) == 1 && weights == 1) {
+    weights <- rep(1, times = dim(stations)[1])
+  }
+  # cat('weights: ', weights, '\n')
+  for (i in 1:dim(stations)[1]){
+    H <- H + weights[i] * X_H[[i]]
+  }
+  
+  # Computation of variability matrix J
+  psi_tau <- function(u, tau){
+    return(tau - as.numeric(u < 0))
+  }
+  
+  # i have the weights and sigmas
+  X_J <- list()
+  for (i in 1:dim(stations)[1]){
+    model <- models[[i]]
+    check_sq <- psi_tau(model$y - model$x %*% model$coefficients, tau)^2
+    
+    x <- matrix(0, ncol = num_coef, nrow = num_coef)
+    for (tl in 1:n){
+      x <- x + (1 / sigmas[i]^2) * check_sq[tl] * model$x[tl, ] %*% t(model$x[tl, ])
+    }
+    
+    X_J[[as.character(stations$STAID[i])]] <- x
+  }
+  
+  J <- matrix(0, ncol = num_coef, nrow = num_coef)
+  for (i in 1:dim(stations)[1]){
+    J <- J + weights[i]^2 * X_J[[i]]
+  }
+  
+  # Computation of Godobame informatin matrix G
+  G <- H %*% solve(J) %*% H
+  
+  eff_param <- sum(diag(H %*% solve(G))) - 1 #substract the intercept
+  
+  return(eff_param)
+}
+
+CLBIC <- function(models, weights = 1, eff_param = FALSE, gamma = 0, p = 100){
   # models as a list
   
   loglik <- numeric(length(models))
@@ -58,11 +128,22 @@ CLBIC <- function(models, weights = 1, gamma = 0, p = 100){
   #cat('logCL', logCL ,'\n')
   # supposedly the models have the same amount of parameters and observations
   n <- length(models[[1]]$fitted.values)
-  k <- length(coef(models[[1]])) - 1
+  if (eff_param == TRUE){
+    if (length(weights) == 1 && weights == 1) {
+      weights <- rep(1, times = dim(stations)[1])
+    }
+    k <- eff_number_param(models, weights)
+    #cat('Número de parámetros efectivo', k, '\n')
+  }else{
+    k <- length(coef(models[[1]])) - 1
+    #cat('Número de parámetros', k, '\n')
+  }
+  
   #cat(n,k,'\n')
   
-  
-  CLBIC <- -2 * logCL + k * log(n) + 2 * gamma * log(choose(p,k))
+  CLBIC <- suppressWarnings(
+    -2 * logCL + k * log(n) + 2 * gamma * log(choose(p,k))
+  )
   
   
   return(CLBIC)
@@ -74,7 +155,9 @@ step_rq_CLBIC<-function(initial_models,
                         stations,
                         scope, 
                         weights = 1,
+                        eff_param = FALSE,
                         gamma = 0, 
+                        p = 100,
                         trace = TRUE,
                         #harmonics = FALSE,
                         replacements = list(
@@ -84,6 +167,12 @@ step_rq_CLBIC<-function(initial_models,
   
   # in order to substract the scale part
   strip_scale <- function(x) sub("^scale\\((.*)\\)$", "\\1", x)
+  
+  if (eff_param == TRUE){
+    cat('Se va a utilizar el número efectivo de parámetros\n')
+  }else{
+    cat('Se va a utlizar el número de parámetros\n')
+  }
   
   # size of covariates set
   vars <- labels(terms(scope)) #formula terms
@@ -107,7 +196,8 @@ step_rq_CLBIC<-function(initial_models,
   print(formula_current)
   cat('\n')
   model_current <- initial_models[[1]]
-  best_CLBIC <- CLBIC(initial_models, weights, gamma, p)
+  
+  best_CLBIC <- CLBIC(initial_models, weights, eff_param, gamma, p)
   
   selected_vars <- attr(terms(formula(model_current)), "term.labels")
   #print(selected_vars)
@@ -154,7 +244,7 @@ step_rq_CLBIC<-function(initial_models,
       }
       
       # Si todo fue bien:
-      CLBIC_val <- CLBIC(models_stations, weights, gamma, p)
+      CLBIC_val <- CLBIC(models_stations, weights, eff_param, gamma, p)
       CLBICs <- c(CLBICs, CLBIC_val)
       models[[var]] <- list(models = models_stations, 
                             formula = formula_try, 
@@ -191,7 +281,7 @@ step_rq_CLBIC<-function(initial_models,
         if (all(c(v1, v2) %in% strip_scale(selected_vars)) && 
             v1_v2 %in% strip_scale(vars)){
           
-          cat('1', '\n')
+          #cat('1', '\n')
           
           combo_id <- v1_v2
           if (combo_id %in% combos_probados){
@@ -229,7 +319,7 @@ step_rq_CLBIC<-function(initial_models,
           }
           
           if (error_occurred != TRUE){
-            CLBIC_val <- CLBIC(models_stations, weights, gamma, p)
+            CLBIC_val <- CLBIC(models_stations, weights, eff_param, gamma, p)
             
             combos_probados <- c(combos_probados, combo_id)
             
@@ -269,7 +359,7 @@ step_rq_CLBIC<-function(initial_models,
         if (all(c(v1_v2, v1) %in% strip_scale(selected_vars)) && 
             v2 %in% strip_scale(vars)){
           
-          cat('2', '\n')
+          #cat('2', '\n')
           
           combo_id <- v1_v2
           if (combo_id %in% combos_probados){
@@ -281,7 +371,7 @@ step_rq_CLBIC<-function(initial_models,
           
           new_selected <- setdiff(selected_vars, c(v1_v2))
           new_selected <- c(new_selected, v2)
-          cat(new_selected, '\n')
+          #cat(new_selected, '\n')
           
           models_stations <- list()
           
@@ -308,7 +398,7 @@ step_rq_CLBIC<-function(initial_models,
           }
           
           if (error_occurred != TRUE){
-            CLBIC_val <- CLBIC(models_stations, weights, gamma, p)
+            CLBIC_val <- CLBIC(models_stations, weights, eff_param, gamma, p)
             
             combos_probados <- c(combos_probados, combo_id)
             
@@ -344,7 +434,7 @@ step_rq_CLBIC<-function(initial_models,
         if (all(c(v1_v2, v2) %in% strip_scale(selected_vars)) && 
             v1 %in% strip_scale(vars)){
           
-          cat('3', '\n')
+          #cat('3', '\n')
           
           combo_id <- v1_v2
           if (combo_id %in% combos_probados){
@@ -356,7 +446,7 @@ step_rq_CLBIC<-function(initial_models,
           
           new_selected <- setdiff(selected_vars, c(v1_v2))
           new_selected <- c(new_selected, v1)
-          cat(new_selected, '\n')
+          #cat(new_selected, '\n')
           
           models_stations <- list()
           
@@ -383,7 +473,7 @@ step_rq_CLBIC<-function(initial_models,
           }
           
           if (error_occurred != TRUE){
-            CLBIC_val <- CLBIC(models_stations, weights, gamma, p)
+            CLBIC_val <- CLBIC(models_stations, weights, eff_param, gamma, p)
             
             combos_probados <- c(combos_probados, combo_id)
             
@@ -443,85 +533,25 @@ step_rq_CLBIC<-function(initial_models,
   if (trace) {
     cat("\nFinal model:\n")
     print(formula_current)
-    cat('CLBIC initial: ', CLBIC(initial_models), '| CLBIC final: ', model_current$CLBIC, '\n')
+    if (eff_param ==TRUE) cat('Número de parámetros efectivo: ', 
+                              eff_number_param(models_solution$models, weights),
+                              '\n')
+    cat('CLBIC initial: ', CLBIC(initial_models, weights, eff_param, gamma, p),
+        '| CLBIC final: ', model_current$CLBIC, '\n')
   }
   
   return(models_solution)
 }
 
 
-#pruebas para elección de EFFECTIVE NUMBER OF PARAMETERS
-modelos_prueba <- list()
-formula <- as.formula('Y ~ s.1 + c.1 + g300 + g500 + g700 +
-  g300_g300_lag + g500_g500_lag + g700_g700_lag')
-for (i in 1:dim(stations)[1]){
-  ind <- which(df_jun_ag$station == stations$STAID[i])
-  mod <- rq(formula, tau = 0.95, data = df_jun_ag, subset = ind)
-  # mod$R1 <- 1 - mod$rho / models_null[[as.character(stations$STAID[i])]]$rho
-  modelos_prueba[[as.character(stations$STAID[i])]] <- mod
-}
-
-# Computation of sensitivity matrix H
-# tau and n are the same for every station
-tau <- modelos_prueba[[1]]$tau
-n <- length(modelos_prueba[[1]]$fitted.values)
-num_coef <- length(modelos_prueba[[1]]$coefficients)
-H <- matrix(0, ncol = num_coef, nrow = num_coef)
-# sigmas for each model
-sigmas <- numeric()
-for (i in 1:dim(stations)[1]){
-  #sigma = 1/n * loss(beta)
-  model <- modelos_prueba[[i]]
-  n <- length(model$fitted.values)
-  sigmas[i] <- model$rho / n
-}
-# x_tl(s_i) %*% t(x_tl(s_i)) the same for each station also
-X_H <- list()
-for (i in 1:dim(stations)[1]){
-  model <- modelos_prueba[[i]]
-
-  x <- matrix(0, ncol = num_coef, nrow = num_coef)
-  for (tl in 1:n){
-    x <- x +  (tau * (1 - tau) / sigmas[i]^2) * model$x[tl, ] %*% t(model$x[tl, ])
-  }
-  
-  X_H[[as.character(stations$STAID[i])]] <- x
-}
-
-# I need the weights
-weights <- rep(1, times = 40) # as argument
-for (i in 1:dim(stations)[1]){
-  H <- H + weights[i] * X_H[[i]]
-}
-
-# Computation of variability matrix J
-psi_tau <- function(u, tau){
-  return(tau - as.numeric(u < 0))
-}
-
-# i have the weights and sigmas
-
-X_J <- list()
-for (i in 1:dim(stations)[1]){
-  model <- modelos_prueba[[i]]
-  check_sq <- psi_tau(model$y - model$x %*% model$coefficients, tau)^2
-  
-  x <- matrix(0, ncol = num_coef, nrow = num_coef)
-  for (tl in 1:n){
-    x <- x + (1 / sigmas[i]^2) * check_sq[tl] * model$x[tl, ] %*% t(model$x[tl, ])
-  }
-  
-  X_J[[as.character(stations$STAID[i])]] <- x
-}
-
-J <- matrix(0, ncol = num_coef, nrow = num_coef)
-for (i in 1:dim(stations)[1]){
-  J <- J + weights[i]^2 * X_J[[i]]
-}
-
-# Computation of Godobame informatin matrix G
-G <- H %*% solve(J) %*% H
-
-eff_param <- sum(diag(H %*% solve(G))
-eff_param
+# #pruebas para elección de EFFECTIVE NUMBER OF PARAMETERS
+# modelos_prueba <- list()
+# formula <- as.formula('Y ~ s.1 + c.1 + g300 + g500 + g700 +
+#   g300_g300_lag + g500_g500_lag + g700_g700_lag')
+# for (i in 1:dim(stations)[1]){
+#   ind <- which(df_jun_ag$station == stations$STAID[i])
+#   mod <- rq(formula, tau = 0.95, data = df_jun_ag, subset = ind)
+#   # mod$R1 <- 1 - mod$rho / models_null[[as.character(stations$STAID[i])]]$rho
+#   modelos_prueba[[as.character(stations$STAID[i])]] <- mod
+# }
 

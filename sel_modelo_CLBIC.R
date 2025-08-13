@@ -128,7 +128,9 @@ mod_step1 <- step_rq_CLBIC(
   null_models = models_null,
   data = df_jun_ag,
   stations = stations,
-  scope = formula
+  scope = formula,
+  weights = 1,
+  eff_param = F
 )
 
 # with different weights
@@ -155,7 +157,8 @@ mod_step1_2 <- step_rq_CLBIC(
   data = df_jun_ag,
   stations = stations,
   scope = formula,
-  weights = w
+  weights = w,
+  eff_param = F
 )
 
 
