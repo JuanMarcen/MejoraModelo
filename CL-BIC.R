@@ -35,12 +35,14 @@ log_lik_rq <- function(model){
 }
 
 logCL_rq <- function(weights = 1, logliks){
+  
   logCL <- sum(weights * logliks)
   
   return(logCL)
 }
 
 CLBIC <- function(models, weights = 1, gamma = 0, p = 100){
+  # models as a list
   
   loglik <- numeric(length(models))
   logCL <- numeric()
@@ -446,4 +448,80 @@ step_rq_CLBIC<-function(initial_models,
   
   return(models_solution)
 }
+
+
+#pruebas para elección de EFFECTIVE NUMBER OF PARAMETERS
+modelos_prueba <- list()
+formula <- as.formula('Y ~ s.1 + c.1 + g300 + g500 + g700 +
+  g300_g300_lag + g500_g500_lag + g700_g700_lag')
+for (i in 1:dim(stations)[1]){
+  ind <- which(df_jun_ag$station == stations$STAID[i])
+  mod <- rq(formula, tau = 0.95, data = df_jun_ag, subset = ind)
+  # mod$R1 <- 1 - mod$rho / models_null[[as.character(stations$STAID[i])]]$rho
+  modelos_prueba[[as.character(stations$STAID[i])]] <- mod
+}
+
+# Computation of sensitivity matrix H
+# tau and n are the same for every station
+tau <- modelos_prueba[[1]]$tau
+n <- length(modelos_prueba[[1]]$fitted.values)
+num_coef <- length(modelos_prueba[[1]]$coefficients)
+H <- matrix(0, ncol = num_coef, nrow = num_coef)
+# sigmas for each model
+sigmas <- numeric()
+for (i in 1:dim(stations)[1]){
+  #sigma = 1/n * loss(beta)
+  model <- modelos_prueba[[i]]
+  n <- length(model$fitted.values)
+  sigmas[i] <- model$rho / n
+}
+# x_tl(s_i) %*% t(x_tl(s_i)) the same for each station also
+X_H <- list()
+for (i in 1:dim(stations)[1]){
+  model <- modelos_prueba[[i]]
+
+  x <- matrix(0, ncol = num_coef, nrow = num_coef)
+  for (tl in 1:n){
+    x <- x +  (tau * (1 - tau) / sigmas[i]^2) * model$x[tl, ] %*% t(model$x[tl, ])
+  }
+  
+  X_H[[as.character(stations$STAID[i])]] <- x
+}
+
+# I need the weights
+weights <- rep(1, times = 40) # as argument
+for (i in 1:dim(stations)[1]){
+  H <- H + weights[i] * X_H[[i]]
+}
+
+# Computation of variability matrix J
+psi_tau <- function(u, tau){
+  return(tau - as.numeric(u < 0))
+}
+
+# i have the weights and sigmas
+
+X_J <- list()
+for (i in 1:dim(stations)[1]){
+  model <- modelos_prueba[[i]]
+  check_sq <- psi_tau(model$y - model$x %*% model$coefficients, tau)^2
+  
+  x <- matrix(0, ncol = num_coef, nrow = num_coef)
+  for (tl in 1:n){
+    x <- x + (1 / sigmas[i]^2) * check_sq[tl] * model$x[tl, ] %*% t(model$x[tl, ])
+  }
+  
+  X_J[[as.character(stations$STAID[i])]] <- x
+}
+
+J <- matrix(0, ncol = num_coef, nrow = num_coef)
+for (i in 1:dim(stations)[1]){
+  J <- J + weights[i]^2 * X_J[[i]]
+}
+
+# Computation of Godobame informatin matrix G
+G <- H %*% solve(J) %*% H
+
+eff_param <- sum(diag(H %*% solve(G))
+eff_param
 
