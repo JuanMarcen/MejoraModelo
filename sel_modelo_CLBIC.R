@@ -45,6 +45,7 @@ corners <- c('','_45_.10', '_45_5', '_35_.10', '_35_5')
 for (c in corners){
   for (g in c('g500', 'g700')){
     df_final[[paste0('g300', c, '_', g, c)]] <- df_harm[not_28, paste0('g300', c)] - df_harm[not_28, paste0(g, c)]
+    df_final[[paste0('g300', c, '_', g, c, '.lag')]] <- lag(df_final[[paste0('g300', c, '_', g, c)]])
   }
 }
 
@@ -74,19 +75,22 @@ aux <- aux %>%
   group_by(t, station) %>%
   mutate(across(-c(1),
                 .fns = ~lag(.),
-                .names = '{.col}_lag')) %>%
+                .names = '{.col}.lag')) %>%
   as.data.frame() %>% na.omit()
 
 for (g in c('g300','g500', 'g700')){
   for (c in corners){
-    df_final[[paste0(g, c, '_lag')]] <- aux[[paste0(g, c, '_lag')]]
-    df_final[[paste0(g, c , '_', g, c, '_lag')]] <- aux[[paste0(g, c)]] - aux[[paste0(g, c, '_lag')]]
+    df_final[[paste0(g, c, '.lag')]] <- aux[[paste0(g, c, '.lag')]]
+    df_final[[paste0(g, c , '_', g, c, '_lag')]] <- aux[[paste0(g, c)]] - aux[[paste0(g, c, '.lag')]]
+    df_final[[paste0(g, c , '_', g, c, '_lag.lag')]] <- lag(df_final[[paste0(g, c , '_', g, c, '_lag')]])
   }
 }
 
 # solo JJA
 jun_ag <- which(df_final$l >= 152)
 df_jun_ag <- df_final[jun_ag, ] #this dataframe is the one we use to fit the models
+
+rm(list = setdiff(ls(), c('df_jun_ag', 'stations')))
 
 #----Step 0: null models and initial models (only harmonics)----
 models_null <- list()
@@ -111,6 +115,7 @@ for (i in 1:dim(stations)[1]){
   models_harmonics[[as.character(stations$STAID[i])]] <- mod
 }
 
+rm(list = setdiff(ls(), c('df_jun_ag', 'stations', 'models_harmonics', 'models_null', 'harmonics')))
 #----Step 1: variables or the air column in each station (8)----
 source('CL-BIC.R')
 vars_air_column <- c(
@@ -123,15 +128,15 @@ formula <- as.formula(
   paste('Y ~', 
         paste(c(harmonics, vars_air_column), collapse = '+')))
 
-mod_step1 <- step_rq_CLBIC(
-  initial_models = models_harmonics,
-  null_models = models_null,
-  data = df_jun_ag,
-  stations = stations,
-  scope = formula,
-  weights = 1,
-  eff_param = F
-)
+# mod_step1 <- step_rq_CLBIC(
+#   initial_models = models_harmonics,
+#   null_models = models_null,
+#   data = df_jun_ag,
+#   stations = stations,
+#   scope = formula,
+#   weights = 1,
+#   eff_param = F
+# )
 
 # with different weights
 stations <- st_transform(
@@ -147,27 +152,83 @@ stations <- st_transform(
 
 coords_km <- st_coordinates(stations) / 1000
 dist <- as.matrix(dist(coords_km))
-
 w <- exp_weights(dist, h = mean(dist), scale = TRUE)
 names(w) <- stations$NAME2
 
-mod_step1_2 <- step_rq_CLBIC(
+#with effective number of parameters takes a while (for each CLBIC comp. it has to calculate them)
+mod_step1 <- step_rq_CLBIC(
   initial_models = models_harmonics,
   null_models = models_null,
   data = df_jun_ag,
   stations = stations,
   scope = formula,
   weights = w,
-  eff_param = F
+  eff_param = T,
+  replacements = list(
+    c('g300','g500','g300_g500'),
+    c('g300','g700','g300_g700')
+    )
 )
 
 
-# comparison of R1 
-mod1 <- numeric()
-mod2 <- numeric()
-for (i in as.character(stations$STAID)){
-  mod1[i] <- mod_step1[["models"]][[i]][["R1"]]
-  mod2[i] <- mod_step1_2[["models"]][[i]][["R1"]]
-}
+# prep for step 2
+# choose variable lag to introduce alone and replacement
+aux <- labels(terms(mod_step1$formula))[grepl('g', labels(terms(mod_step1$formula)))]
+# aux <- aux[grepl('_lag', aux)]
+# aux <- sub("^(.+?)_\\1.*$", "\\1", aux)
+vars2 <- paste0(aux, '.lag')
 
-comp_R1 <- cbind(mod1, mod2, mod1 - mod2)
+formula <- update(mod_step1$formula, 
+                  as.formula(paste(". ~ . +", paste(vars2, collapse = " + ")))
+                  )
+
+mod_step2 <- step_rq_CLBIC(
+  initial_models = mod_step1$models,
+  null_models = models_null,
+  data = df_jun_ag,
+  stations = stations,
+  scope = formula,
+  weights = w,
+  eff_param = T,
+  replacements = list(
+    c('g500', 'g500.lag', 'g500_g500_lag'),
+    c('g300', 'g300.lag', 'g300_g300_lag'),
+    c('g700', 'g700.lag', 'g700_g700_lag')
+  )
+)
+
+# step 3
+aux <- labels(terms(mod_step2$formula))[grepl('g', labels(terms(mod_step2$formula)))]
+vars3 <- paste0('I(', aux, '^2)')
+
+formula <- update(mod_step2$formula, 
+                  as.formula(paste(". ~ . +", paste(vars3, collapse = " + ")))
+)
+
+mod_step2 <- step_rq_CLBIC(
+  initial_models = mod_step2$models,
+  null_models = models_null,
+  data = df_jun_ag,
+  stations = stations,
+  scope = formula,
+  weights = w,
+  eff_param = T,
+  replacements = list()
+)
+
+
+
+
+
+
+# step 4
+
+# comparison of R1 
+# mod1 <- numeric()
+# mod2 <- numeric()
+# for (i in as.character(stations$STAID)){
+#   mod1[i] <- mod_step1[["models"]][[i]][["R1"]]
+#   mod2[i] <- mod_step1_2[["models"]][[i]][["R1"]]
+# }
+# 
+# comp_R1 <- cbind(mod1, mod2, mod1 - mod2)

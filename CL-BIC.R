@@ -127,7 +127,9 @@ CLBIC <- function(models, weights = 1, eff_param = FALSE, gamma = 0, p = 100){
   
   #cat('logCL', logCL ,'\n')
   # supposedly the models have the same amount of parameters and observations
-  n <- length(models[[1]]$fitted.values)
+  # n <- length(models[[1]]$fitted.values)
+  # n is equal to the number of iid groups (40)
+  n <- dim(stations)[1]
   if (eff_param == TRUE){
     if (length(weights) == 1 && weights == 1) {
       weights <- rep(1, times = dim(stations)[1])
@@ -147,6 +149,20 @@ CLBIC <- function(models, weights = 1, eff_param = FALSE, gamma = 0, p = 100){
   
   
   return(CLBIC)
+}
+
+R1_global <- function(formula, stations, data, tau){
+  # R1 
+  mod_null <- rq(Y ~ as.factor(station), data = data, tau = tau)
+  rho_station <- rep(NA, dim(stations)[1])
+  
+  for (i in 1:length(rho_station)){
+    ind <- which(data$station == stations$STAID[i])
+    mod.aux <- rq(formula, data = data[ind, ], tau = tau)
+    rho_station[i] <- mod.aux$rho
+  }
+  
+  return(1 - sum(rho_station)/mod_null$rho)
 }
 
 step_rq_CLBIC<-function(initial_models,
@@ -207,6 +223,10 @@ step_rq_CLBIC<-function(initial_models,
   improved <- TRUE
   combos_probados <- character(0)
   
+  models_solution <- list(models = initial_models,
+                          formula = formula_current,
+                          CLBIC = best_CLBIC)
+  
   while (improved && length(remaining_vars) > 0){
     improved <- FALSE
     CLBICs <- c()
@@ -214,6 +234,8 @@ step_rq_CLBIC<-function(initial_models,
     error_occurred <- FALSE
     
     for (var in remaining_vars){
+      error_occurred <- FALSE
+      #print(remaining_vars)
       models_stations <- list()
       formula_try <- as.formula(
         paste(response, '~', paste(c(selected_vars, var), collapse = '+'))
@@ -251,7 +273,10 @@ step_rq_CLBIC<-function(initial_models,
                             CLBIC = CLBIC_val)
     }
     
+    #print(CLBICs)
     min_CLBIC <- min(CLBICs)
+    
+    #print(min_CLBIC)
     
     if(min_CLBIC < best_CLBIC){
       best_var <- remaining_vars[which.min(CLBICs)]
@@ -299,6 +324,8 @@ step_rq_CLBIC<-function(initial_models,
           formula_try <- as.formula(
             paste(response, '~', paste(new_selected, collapse = '+'))
           )
+          
+          error_occurred <- FALSE
           
           for (i in 1:dim(stations)[1]){
             ind <- which(data$station == stations$STAID[i])
@@ -379,6 +406,7 @@ step_rq_CLBIC<-function(initial_models,
             paste(response, '~', paste(new_selected, collapse = '+'))
           )
           
+          error_occurred <- FALSE
           for (i in 1:dim(stations)[1]){
             ind <- which(data$station == stations$STAID[i])
             model_try <- tryCatch(
@@ -454,6 +482,7 @@ step_rq_CLBIC<-function(initial_models,
             paste(response, '~', paste(new_selected, collapse = '+'))
           )
           
+          error_occurred <- FALSE
           for (i in 1:dim(stations)[1]){
             ind <- which(data$station == stations$STAID[i])
             model_try <- tryCatch(
@@ -517,6 +546,8 @@ step_rq_CLBIC<-function(initial_models,
   # eBIC
   model_current$CLBIC <- best_CLBIC
   
+  
+  models_solution$R1 <- R1_global(formula_current, stations, data, tau)
   # R1
   # model_null <- suppressWarnings(
   #   rq(paste(response, '~ 1'), data = data, tau = tau)
@@ -538,10 +569,14 @@ step_rq_CLBIC<-function(initial_models,
                               '\n')
     cat('CLBIC initial: ', CLBIC(initial_models, weights, eff_param, gamma, p),
         '| CLBIC final: ', model_current$CLBIC, '\n')
+    
+    cat('Global R1: ', models_solution$R1)
   }
   
   return(models_solution)
 }
+
+
 
 
 # #pruebas para elección de EFFECTIVE NUMBER OF PARAMETERS
