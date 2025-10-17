@@ -11,7 +11,7 @@ exp_weights <- function(dist_matrix, h, scale = TRUE){
   
   w <- numeric()
   
-  for (i in 1:dim(stations)[1]){
+  for (i in 1:dim(dist_matrix)[1]){
     w[i] <- 1 / sum(dist_kernel[i, ])
   }
   
@@ -41,7 +41,7 @@ logCL_rq <- function(weights = 1, logliks){
   return(logCL)
 }
 
-eff_number_param <- function(models, weights = 1){
+eff_number_param <- function(models, weights = 1, stations_df){
   
   # Computation of sensitivity matrix H
   # tau and n are the same for every station
@@ -51,7 +51,7 @@ eff_number_param <- function(models, weights = 1){
   H <- matrix(0, ncol = num_coef, nrow = num_coef)
   # sigmas for each model
   sigmas <- numeric()
-  for (i in 1:dim(stations)[1]){
+  for (i in 1:dim(stations_df)[1]){
     #sigma = 1/n * loss(beta)
     model <- models[[i]]
     n <- length(model$fitted.values)
@@ -59,7 +59,7 @@ eff_number_param <- function(models, weights = 1){
   }
   # x_tl(s_i) %*% t(x_tl(s_i)) the same for each station also
   X_H <- list()
-  for (i in 1:dim(stations)[1]){
+  for (i in 1:dim(stations_df)[1]){
     model <- models[[i]]
     
     x <- matrix(0, ncol = num_coef, nrow = num_coef)
@@ -67,15 +67,15 @@ eff_number_param <- function(models, weights = 1){
       x <- x +  (tau * (1 - tau) / sigmas[i]^2) * model$x[tl, ] %*% t(model$x[tl, ])
     }
     
-    X_H[[as.character(stations$STAID[i])]] <- x
+    X_H[[as.character(stations_df$STAID[i])]] <- x
   }
   
   # I need the weights (argument)
   if (length(weights) == 1 && weights == 1) {
-    weights <- rep(1, times = dim(stations)[1])
+    weights <- rep(1, times = dim(stations_df)[1])
   }
   # cat('weights: ', weights, '\n')
-  for (i in 1:dim(stations)[1]){
+  for (i in 1:dim(stations_df)[1]){
     H <- H + weights[i] * X_H[[i]]
   }
   
@@ -86,7 +86,7 @@ eff_number_param <- function(models, weights = 1){
   
   # i have the weights and sigmas
   X_J <- list()
-  for (i in 1:dim(stations)[1]){
+  for (i in 1:dim(stations_df)[1]){
     model <- models[[i]]
     check_sq <- psi_tau(model$y - model$x %*% model$coefficients, tau)^2
     
@@ -95,11 +95,11 @@ eff_number_param <- function(models, weights = 1){
       x <- x + (1 / sigmas[i]^2) * check_sq[tl] * model$x[tl, ] %*% t(model$x[tl, ])
     }
     
-    X_J[[as.character(stations$STAID[i])]] <- x
+    X_J[[as.character(stations_df$STAID[i])]] <- x
   }
   
   J <- matrix(0, ncol = num_coef, nrow = num_coef)
-  for (i in 1:dim(stations)[1]){
+  for (i in 1:dim(stations_df)[1]){
     J <- J + weights[i]^2 * X_J[[i]]
   }
   
@@ -111,7 +111,8 @@ eff_number_param <- function(models, weights = 1){
   return(eff_param)
 }
 
-CLBIC <- function(models, weights = 1, eff_param = FALSE, gamma = 0, p = 100){
+CLBIC <- function(models, weights = 1, eff_param = FALSE, gamma = 0, p = 100,
+                  stations_df){
   # models as a list
   
   loglik <- numeric(length(models))
@@ -129,12 +130,12 @@ CLBIC <- function(models, weights = 1, eff_param = FALSE, gamma = 0, p = 100){
   # supposedly the models have the same amount of parameters and observations
   # n <- length(models[[1]]$fitted.values)
   # n is equal to the number of iid groups (40)
-  n <- dim(stations)[1]
+  n <- dim(stations_df)[1]
   if (eff_param == TRUE){
     if (length(weights) == 1 && weights == 1) {
-      weights <- rep(1, times = dim(stations)[1])
+      weights <- rep(1, times = dim(stations_df)[1])
     }
-    k <- eff_number_param(models, weights)
+    k <- eff_number_param(models, weights, stations_df = stations_df)
     #cat('Número de parámetros efectivo', k, '\n')
   }else{
     k <- length(coef(models[[1]])) - 1
@@ -151,13 +152,14 @@ CLBIC <- function(models, weights = 1, eff_param = FALSE, gamma = 0, p = 100){
   return(CLBIC)
 }
 
-R1_global <- function(formula, stations, data, tau){
+R1_global <- function(formula, stations_df, data, tau){
   # R1 
-  mod_null <- rq(Y ~ as.factor(station), data = data, tau = tau)
-  rho_station <- rep(NA, dim(stations)[1])
+  data.aux <- data[is.element(data$station, stations_df$STAID), ]
+  mod_null <- rq(Y ~ as.factor(station), data = data.aux, tau = tau)
+  rho_station <- rep(NA, dim(stations_df)[1])
   
   for (i in 1:length(rho_station)){
-    ind <- which(data$station == stations$STAID[i])
+    ind <- which(data$station == stations_df$STAID[i])
     mod.aux <- rq(formula, data = data[ind, ], tau = tau)
     rho_station[i] <- mod.aux$rho
   }
@@ -168,7 +170,7 @@ R1_global <- function(formula, stations, data, tau){
 step_rq_CLBIC<-function(initial_models,
                         null_models,
                         data, 
-                        stations,
+                        stations_df,
                         scope, 
                         weights = 1,
                         eff_param = FALSE,
@@ -213,7 +215,7 @@ step_rq_CLBIC<-function(initial_models,
   cat('\n')
   model_current <- initial_models[[1]]
   
-  best_CLBIC <- CLBIC(initial_models, weights, eff_param, gamma, p)
+  best_CLBIC <- CLBIC(initial_models, weights, eff_param, gamma, p, stations_df = stations_df)
   
   selected_vars <- attr(terms(formula(model_current)), "term.labels")
   #print(selected_vars)
@@ -235,28 +237,26 @@ step_rq_CLBIC<-function(initial_models,
     
     for (var in remaining_vars){
       error_occurred <- FALSE
-      #print(remaining_vars)
       models_stations <- list()
       formula_try <- as.formula(
         paste(response, '~', paste(c(selected_vars, var), collapse = '+'))
       )
       
-      for (i in 1:dim(stations)[1]){
-        ind <- which(data$station == stations$STAID[i])
+      for (i in 1:dim(stations_df)[1]){
+        ind <- which(data$station == stations_df$STAID[i])
         model_try <- tryCatch(
           rq(formula_try, data = data, subset = ind, tau = tau),
           error = function(e) return(NULL)
         )
         
         if (is.null(model_try)) {
-          if (trace) cat("Saltando variable (error en ajuste):", var, '\n',
-                         'Cometido en la estación', stations$STAID[i], "\n")
+          if (trace) cat("Saltando variable (error en ajuste):", var, '\n')
           error_occurred <- TRUE
           break
         }
         
         model_try$R1 <- 1 - model_try$rho / null_models[[i]]$rho
-        models_stations[[as.character(stations$STAID[i])]] <- model_try
+        models_stations[[as.character(stations_df$STAID[i])]] <- model_try
       }
       
       if (error_occurred) {
@@ -266,7 +266,7 @@ step_rq_CLBIC<-function(initial_models,
       }
       
       # Si todo fue bien:
-      CLBIC_val <- CLBIC(models_stations, weights, eff_param, gamma, p)
+      CLBIC_val <- CLBIC(models_stations, weights, eff_param, gamma, p, stations_df = stations_df)
       CLBICs <- c(CLBICs, CLBIC_val)
       models[[var]] <- list(models = models_stations, 
                             formula = formula_try, 
@@ -277,7 +277,9 @@ step_rq_CLBIC<-function(initial_models,
     min_CLBIC <- min(CLBICs)
     
     #print(min_CLBIC)
-    
+    if (is.na(min_CLBIC) || is.na(min_CLBIC)){
+      min_CLBIC <- Inf
+    }
     if(min_CLBIC < best_CLBIC){
       best_var <- remaining_vars[which.min(CLBICs)]
       selected_vars <- c(selected_vars, best_var)
@@ -327,26 +329,25 @@ step_rq_CLBIC<-function(initial_models,
           
           error_occurred <- FALSE
           
-          for (i in 1:dim(stations)[1]){
-            ind <- which(data$station == stations$STAID[i])
+          for (i in 1:dim(stations_df)[1]){
+            ind <- which(data$station == stations_df$STAID[i])
             model_try <- tryCatch(
               rq(formula_try, data = data, subset = ind, tau = tau),
               error = function(e) return(NULL)
             )
             
             if (is.null(model_try)) {
-              if (trace) cat("Saltando variable (error en ajuste):", var, '\n',
-                             'Cometido en la estación', stations$STAID[i], "\n")
+              if (trace) cat("Saltando variable (error en ajuste):", var, '\n')
               error_occurred <- TRUE
               break
             }
             
             model_try$R1 <- 1 - model_try$rho / null_models[[i]]$rho
-            models_stations[[as.character(stations$STAID[i])]] <- model_try
+            models_stations[[as.character(stations_df$STAID[i])]] <- model_try
           }
           
           if (error_occurred != TRUE){
-            CLBIC_val <- CLBIC(models_stations, weights, eff_param, gamma, p)
+            CLBIC_val <- CLBIC(models_stations, weights, eff_param, gamma, p, stations_df = stations_df)
             
             combos_probados <- c(combos_probados, combo_id)
             
@@ -407,26 +408,25 @@ step_rq_CLBIC<-function(initial_models,
           )
           
           error_occurred <- FALSE
-          for (i in 1:dim(stations)[1]){
-            ind <- which(data$station == stations$STAID[i])
+          for (i in 1:dim(stations_df)[1]){
+            ind <- which(data$station == stations_df$STAID[i])
             model_try <- tryCatch(
               rq(formula_try, data = data, subset = ind, tau = tau),
               error = function(e) return(NULL)
             )
             
             if (is.null(model_try)) {
-              if (trace) cat("Saltando variable (error en ajuste):", var, '\n',
-                             'Cometido en la estación', stations$STAID[i], "\n")
+              if (trace) cat("Saltando variable (error en ajuste):", var, '\n')
               error_occurred <- TRUE
               break
             }
             
             model_try$R1 <- 1 - model_try$rho / null_models[[i]]$rho
-            models_stations[[as.character(stations$STAID[i])]] <- model_try
+            models_stations[[as.character(stations_df$STAID[i])]] <- model_try
           }
           
           if (error_occurred != TRUE){
-            CLBIC_val <- CLBIC(models_stations, weights, eff_param, gamma, p)
+            CLBIC_val <- CLBIC(models_stations, weights, eff_param, gamma, p, stations_df = stations_df)
             
             combos_probados <- c(combos_probados, combo_id)
             
@@ -483,26 +483,25 @@ step_rq_CLBIC<-function(initial_models,
           )
           
           error_occurred <- FALSE
-          for (i in 1:dim(stations)[1]){
-            ind <- which(data$station == stations$STAID[i])
+          for (i in 1:dim(stations_df)[1]){
+            ind <- which(data$station == stations_df$STAID[i])
             model_try <- tryCatch(
               rq(formula_try, data = data, subset = ind, tau = tau),
               error = function(e) return(NULL)
             )
             
             if (is.null(model_try)) {
-              if (trace) cat("Saltando variable (error en ajuste):", var, '\n',
-                             'Cometido en la estación', stations$STAID[i], "\n")
+              if (trace) cat("Saltando variable (error en ajuste):", var, '\n')
               error_occurred <- TRUE
               break
             }
             
             model_try$R1 <- 1 - model_try$rho / null_models[[i]]$rho
-            models_stations[[as.character(stations$STAID[i])]] <- model_try
+            models_stations[[as.character(stations_df$STAID[i])]] <- model_try
           }
           
           if (error_occurred != TRUE){
-            CLBIC_val <- CLBIC(models_stations, weights, eff_param, gamma, p)
+            CLBIC_val <- CLBIC(models_stations, weights, eff_param, gamma, p, stations_df = stations_df)
             
             combos_probados <- c(combos_probados, combo_id)
             
@@ -547,7 +546,9 @@ step_rq_CLBIC<-function(initial_models,
   model_current$CLBIC <- best_CLBIC
   
   
-  models_solution$R1 <- R1_global(formula_current, stations, data, tau)
+  models_solution$R1 <- suppressWarnings(
+    R1_global(formula_current, stations_df, data, tau)
+  )
   # R1
   # model_null <- suppressWarnings(
   #   rq(paste(response, '~ 1'), data = data, tau = tau)
@@ -565,9 +566,9 @@ step_rq_CLBIC<-function(initial_models,
     cat("\nFinal model:\n")
     print(formula_current)
     if (eff_param ==TRUE) cat('Número de parámetros efectivo: ', 
-                              eff_number_param(models_solution$models, weights),
+                              eff_number_param(models_solution$models, weights, stations_df = stations_df),
                               '\n')
-    cat('CLBIC initial: ', CLBIC(initial_models, weights, eff_param, gamma, p),
+    cat('CLBIC initial: ', CLBIC(initial_models, weights, eff_param, gamma, p, stations_df = stations_df),
         '| CLBIC final: ', model_current$CLBIC, '\n')
     
     cat('Global R1: ', models_solution$R1)
