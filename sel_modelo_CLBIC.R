@@ -144,7 +144,7 @@ stations <- st_transform(
 
 coords_km <- st_coordinates(stations) / 1000
 dist <- as.matrix(dist(coords_km))
-w <- exp_weights(dist, h = mean(dist), scale = TRUE) # h will be the CV parameter
+w <- exp_weights(dist, h = 100, scale = TRUE) # h will be the CV parameter
 names(w) <- stations$NAME2
 
 #with effective number of parameters takes a while (for each CLBIC comp. it has to calculate them)
@@ -157,8 +157,8 @@ vars_air_column <- c(
 formula <- as.formula(
   paste('Y ~', 
         paste(c(harmonics, vars_air_column), collapse = '+')))
-log_file <- 'CLBIC_sel_q0.50.txt'
-header <- "=== SELECCIÓN MODELO PASO A PASO CLBIC ===\n"
+log_file <- 'CLCAIC_sel_q0.50.txt'
+header <- "=== SELECCIÓN MODELO PASO A PASO CLCAIC ===\n"
 writeLines(header, log_file)
 cat('\n--- Step 1 ---\n\n', file = log_file, append = TRUE)
 sink(log_file, append = TRUE)
