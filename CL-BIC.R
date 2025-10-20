@@ -12,7 +12,7 @@ exp_weights <- function(dist_matrix, h, scale = TRUE){
   w <- numeric()
   
   for (i in 1:dim(dist_matrix)[1]){
-    w[i] <- 1 / sum(dist_kernel[i, ])
+    w[i] <- 1 / sum(dist_kernel[i, -i])
   }
   
   if (scale == TRUE){
@@ -104,11 +104,12 @@ eff_number_param <- function(models, weights = 1, stations_df){
   }
   
   # Computation of Godobame informatin matrix G
-  G <- H %*% solve(J) %*% H
+  #G <- H %*% solve(J) %*% H
   
-  eff_param <- sum(diag(H %*% solve(G))) - 1 #substract the intercept
+  #eff_param <- sum(diag(H %*% solve(G))) - 1 #substract the intercept
   
-  return(eff_param)
+  eff_param.2 <- sum(diag(J %*% solve(H))) - 1
+  return(eff_param.2)
 }
 
 CLBIC <- function(models, weights = 1, eff_param = FALSE, gamma = 0, p = 100,
@@ -145,7 +146,7 @@ CLBIC <- function(models, weights = 1, eff_param = FALSE, gamma = 0, p = 100,
   #cat(n,k,'\n')
   
   CLBIC <- suppressWarnings(
-    -2 * logCL + k * log(n) + 2 * gamma * log(choose(p,k))
+    -2 * logCL + k * (log(n) + 1) + 2 * gamma * log(choose(p,k))
   )
   
   
