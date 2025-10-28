@@ -175,10 +175,10 @@ iterative.weights <- function(data, stations_df, initial.weights = rep(1, nrow(s
   weights <- initial.weights
   
   for (iter in 1:max.iter){ 
-    # cat('Iteration ', iter, '\n')
-    # cat('Weights: \n')
-    # print(weights)
-    # cat('\n')
+    cat('Iteration ', iter, '\n')
+    cat('Weights: \n')
+    print(weights)
+    cat('\n')
     
     data$w <- rep(weights, each = length(unique(data$t)) * length(unique(data$l)))
     
@@ -186,9 +186,9 @@ iterative.weights <- function(data, stations_df, initial.weights = rep(1, nrow(s
               weights = w)
     
     beta <- coef(mod)
-    # cat('Betas: \n')
-    # print(beta)
-    # cat('\n')
+    cat('Betas: \n')
+    print(beta)
+    cat('\n')
     
     # recalcular pesos
     # Computation of sensitivity matrix H
@@ -321,6 +321,8 @@ step_rq_CLBIC<-function(initial_models,
                                  formula = formula_current,
                                  tau = tau, tol = tol, max.iter = max.iter, 
                                  trace = FALSE)
+  }else{
+    weights <- weights
   }
   
   best_CLBIC <- CLBIC(initial_models, weights, eff_param, gamma, p, stations_df = stations_df)
@@ -377,12 +379,15 @@ step_rq_CLBIC<-function(initial_models,
       
       # Si todo fue bien:
       #CALCULO DE WEIGHTS
+      print(formula_try)
       if (iterative.weights == TRUE){
         weights <- iterative.weights(data = data, stations_df = stations_df, 
                                      initial.weights = rep(1, nrow(stations_df)), 
                                      formula = formula_try,
                                      tau = tau, tol = tol, max.iter = max.iter, 
                                      trace = FALSE)
+      }else{
+        weights <- weights
       }
       CLBIC_val <- CLBIC(models_stations, weights, eff_param, gamma, p, stations_df = stations_df)
       CLBICs <- c(CLBICs, CLBIC_val)
@@ -472,6 +477,8 @@ step_rq_CLBIC<-function(initial_models,
                                            formula = formula_try,
                                            tau = tau, tol = tol, max.iter = max.iter, 
                                            trace = FALSE)
+            }else{
+              weights <- weights
             }
             CLBIC_val <- CLBIC(models_stations, weights, eff_param, gamma, p, stations_df = stations_df)
             
@@ -559,6 +566,8 @@ step_rq_CLBIC<-function(initial_models,
                                            formula = formula_try,
                                            tau = tau, tol = tol, max.iter = max.iter, 
                                            trace = FALSE)
+            }else{
+              weights <- weights
             }
             CLBIC_val <- CLBIC(models_stations, weights, eff_param, gamma, p, stations_df = stations_df)
             
@@ -642,6 +651,8 @@ step_rq_CLBIC<-function(initial_models,
                                            formula = formula_try,
                                            tau = tau, tol = tol, max.iter = max.iter, 
                                            trace = FALSE)
+            }else{
+              weights <- weights
             }
             CLBIC_val <- CLBIC(models_stations, weights, eff_param, gamma, p, stations_df = stations_df)
             

@@ -97,7 +97,7 @@ models_null <- list()
 for (i in 1:dim(stations)[1]){
   ind <- which(df_jun_ag$station == stations$STAID[i])
   mod_null <- suppressWarnings(
-    rq(Y ~ 1, tau = 0.50, data = df_jun_ag, subset = ind)
+    rq(Y ~ 1, tau = 0.95, data = df_jun_ag, subset = ind)
   )
   models_null[[as.character(stations$STAID[i])]] <- mod_null
 }
@@ -110,7 +110,7 @@ models_harmonics <- list()
 
 for (i in 1:dim(stations)[1]){
   ind <- which(df_jun_ag$station == stations$STAID[i])
-  mod <- rq(formula, tau = 0.50, data = df_jun_ag, subset = ind)
+  mod <- rq(formula, tau = 0.95, data = df_jun_ag, subset = ind)
   mod$R1 <- 1 - mod$rho / models_null[[as.character(stations$STAID[i])]]$rho
   models_harmonics[[as.character(stations$STAID[i])]] <- mod
 }
@@ -157,7 +157,7 @@ vars_air_column <- c(
 formula <- as.formula(
   paste('Y ~', 
         paste(c(harmonics, vars_air_column), collapse = '+')))
-log_file <- 'CLCAIC_sel_q0.50.txt'
+log_file <- 'CLCAIC_sel_q0.95.it.w.txt'
 header <- "=== SELECCIÓN MODELO PASO A PASO CLCAIC ===\n"
 writeLines(header, log_file)
 cat('\n--- Step 1 ---\n\n', file = log_file, append = TRUE)
@@ -171,6 +171,9 @@ mod_step1 <- step_rq_CLBIC(
   scope = formula,
   weights = w,
   eff_param = T,
+  iterative.weights = TRUE,
+  tol = 0.01,
+  max.iter = 2,
   replacements = list(
     c('g300','g500','g300_g500'),
     c('g300','g700','g300_g700')
