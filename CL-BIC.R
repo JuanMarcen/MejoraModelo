@@ -168,6 +168,98 @@ R1_global <- function(formula, stations_df, data, tau){
   return(1 - sum(rho_station)/mod_null$rho)
 }
 
+iterative.weights <- function(data, stations_df, initial.weights = rep(1, nrow(stations_df)), 
+                              formula,
+                              tau, tol = 1e-6, max.iter = 50, trace = FALSE){
+  beta_old <- NULL
+  weights <- initial.weights
+  
+  for (iter in 1:max.iter){ 
+    # cat('Iteration ', iter, '\n')
+    # cat('Weights: \n')
+    # print(weights)
+    # cat('\n')
+    
+    data$w <- rep(weights, each = length(unique(data$t)) * length(unique(data$l)))
+    
+    mod <- rq(formula, tau = tau, data = data, 
+              weights = w)
+    
+    beta <- coef(mod)
+    # cat('Betas: \n')
+    # print(beta)
+    # cat('\n')
+    
+    # recalcular pesos
+    # Computation of sensitivity matrix H
+    # tau and n are the same for every station
+    tau <- mod$tau
+    num_coef <- length(mod$coefficients)
+    # sigmas for each model
+    sigmas <- numeric()
+    rho_tau <- function(u, tau){
+      return(u*(tau - as.numeric(u < 0)))
+    }
+    for (i in 1:dim(stations_df)[1]){
+      ind <- which(data$station == stations_df$STAID[i])
+      #sigma = 1/n * loss(beta)
+      #n <- length(mod$fitted.values[ind])
+      resid <- mod$residuals[ind]
+      sigmas[i] <-  mean(rho_tau(resid, tau))
+    }
+    
+    #H_i
+    H.i <- list()
+    for (i in 1:dim(stations_df)[1]){
+      ind <- which(data$station == stations_df$STAID[i])
+      x <- matrix(0, ncol = num_coef, nrow = num_coef)
+      
+      H.i[[as.character(stations_df$STAID[i])]] <- (tau * (1 - tau) / sigmas[i]^2) * crossprod(mod$x[ind, ])
+    }
+  
+    # Computation of variability matrix J
+    psi_tau <- function(u, tau){
+      return(tau - as.numeric(u < 0))
+    }
+    
+    # V_i have the weights and sigmas
+    V.i <- list()
+    for (i in 1:dim(stations_df)[1]){
+      ind <- which(data$station == stations_df$STAID[i])
+      resid <- mod$residuals[ind]
+      check_sq <- psi_tau(resid, tau)^2
+      
+      x.inner <- check_sq * mod$x[ind, ]
+      
+      V.i[[as.character(stations_df$STAID[i])]] <- (1 / sigmas[i]^2) * crossprod(x.inner, mod$x[ind, ])
+    }
+    
+    #update of weigths
+    weights.new <- c()
+    for (i in 1:dim(stations_df)[1]){
+      weights.new[i] <- sum(diag(H.i[[i]])) / sum(diag(V.i[[i]]))
+    }
+    
+    weights.new <- nrow(stations_df) * weights.new / sum(weights.new)
+    
+    # criterio de convergencia sobre beta
+    if (!is.null(beta_old)) {
+      norm <- sqrt(sum((beta - beta_old)^2))
+      if (norm < tol) {
+        if (trace == TRUE){
+          message("Convergencia de pesos en iter = ", iter)
+        }
+        break
+      }
+    }
+    beta_old <- beta
+    weights <- weights.new
+    
+  }
+  
+  return(weights)
+}
+
 step_rq_CLBIC<-function(initial_models,
                         null_models,
                         data, 
@@ -178,6 +270,9 @@ step_rq_CLBIC<-function(initial_models,
                         gamma = 0, 
                         p = 100,
                         trace = TRUE,
+                        iterative.weights = FALSE,
+                        tol = 1e-6,
+                        max.iter = 50,
                         #harmonics = FALSE,
                         replacements = list(
                           c('g300','g500','g300_g500'),
@@ -193,6 +288,9 @@ step_rq_CLBIC<-function(initial_models,
     cat('Se va a utlizar el número de parámetros\n')
   }
   
+  if (iterative.weights == TRUE){
+    cat('Los pesos se van a calcular de manera iterativa\n')
+  }
   # size of covariates set
   vars <- labels(terms(scope)) #formula terms
   #print(vars)
@@ -216,7 +314,18 @@ step_rq_CLBIC<-function(initial_models,
   cat('\n')
   model_current <- initial_models[[1]]
   
+  #CALCULO DE WEIGHTS
+  if (iterative.weights == TRUE){
+    weights <- iterative.weights(data = data, stations_df = stations_df, 
+                                 initial.weights = rep(1, nrow(stations_df)), 
+                                 formula = formula_current,
+                                 tau = tau, tol = tol, max.iter = max.iter, 
+                                 trace = FALSE)
+  }
+  
   best_CLBIC <- CLBIC(initial_models, weights, eff_param, gamma, p, stations_df = stations_df)
+  
+  CLBIC.initial <- best_CLBIC
   
   selected_vars <- attr(terms(formula(model_current)), "term.labels")
   #print(selected_vars)
@@ -267,6 +376,14 @@ step_rq_CLBIC<-function(initial_models,
       }
       
       # Si todo fue bien:
+      #CALCULO DE WEIGHTS
+      if (iterative.weights == TRUE){
+        weights <- iterative.weights(data = data, stations_df = stations_df, 
+                                     initial.weights = rep(1, nrow(stations_df)), 
+                                     formula = formula_try,
+                                     tau = tau, tol = tol, max.iter = max.iter, 
+                                     trace = FALSE)
+      }
       CLBIC_val <- CLBIC(models_stations, weights, eff_param, gamma, p, stations_df = stations_df)
       CLBICs <- c(CLBICs, CLBIC_val)
       models[[var]] <- list(models = models_stations, 
@@ -348,6 +465,14 @@ step_rq_CLBIC<-function(initial_models,
           }
           
           if (error_occurred != TRUE){
+            #CALCULO DE WEIGHTS
+            if (iterative.weights == TRUE){
+              weights <- iterative.weights(data = data, stations_df = stations_df, 
+                                           initial.weights = rep(1, nrow(stations_df)), 
+                                           formula = formula_try,
+                                           tau = tau, tol = tol, max.iter = max.iter, 
+                                           trace = FALSE)
+            }
             CLBIC_val <- CLBIC(models_stations, weights, eff_param, gamma, p, stations_df = stations_df)
             
             combos_probados <- c(combos_probados, combo_id)
@@ -427,6 +552,14 @@ step_rq_CLBIC<-function(initial_models,
           }
           
           if (error_occurred != TRUE){
+            #CALCULO DE WEIGHTS
+            if (iterative.weights == TRUE){
+              weights <- iterative.weights(data = data, stations_df = stations_df, 
+                                           initial.weights = rep(1, nrow(stations_df)), 
+                                           formula = formula_try,
+                                           tau = tau, tol = tol, max.iter = max.iter, 
+                                           trace = FALSE)
+            }
             CLBIC_val <- CLBIC(models_stations, weights, eff_param, gamma, p, stations_df = stations_df)
             
             combos_probados <- c(combos_probados, combo_id)
@@ -502,6 +635,14 @@ step_rq_CLBIC<-function(initial_models,
           }
           
           if (error_occurred != TRUE){
+            #CALCULO DE WEIGHTS
+            if (iterative.weights == TRUE){
+              weights <- iterative.weights(data = data, stations_df = stations_df, 
+                                           initial.weights = rep(1, nrow(stations_df)), 
+                                           formula = formula_try,
+                                           tau = tau, tol = tol, max.iter = max.iter, 
+                                           trace = FALSE)
+            }
             CLBIC_val <- CLBIC(models_stations, weights, eff_param, gamma, p, stations_df = stations_df)
             
             combos_probados <- c(combos_probados, combo_id)
@@ -569,7 +710,8 @@ step_rq_CLBIC<-function(initial_models,
     if (eff_param ==TRUE) cat('Número de parámetros efectivo: ', 
                               eff_number_param(models_solution$models, weights, stations_df = stations_df),
                               '\n')
-    cat('CLBIC initial: ', CLBIC(initial_models, weights, eff_param, gamma, p, stations_df = stations_df),
+    #CALCULO DE WEIGHTS GUARDAR LAS INICIALES Y PONERLAS
+    cat('CLBIC initial: ', CLBIC.initial,
         '| CLBIC final: ', model_current$CLBIC, '\n')
     
     cat('Global R1: ', models_solution$R1)
@@ -591,4 +733,6 @@ step_rq_CLBIC<-function(initial_models,
 #   # mod$R1 <- 1 - mod$rho / models_null[[as.character(stations$STAID[i])]]$rho
 #   modelos_prueba[[as.character(stations$STAID[i])]] <- mod
 # }
+
+
 
