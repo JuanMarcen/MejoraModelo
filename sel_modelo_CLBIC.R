@@ -170,10 +170,10 @@ mod_step1 <- step_rq_CLBIC(
   stations = stations,
   scope = formula,
   weights = w,
-  eff_param = T,
-  iterative.weights = TRUE,
+  eff_param = TRUE,
+  it.weights = T,
   tol = 0.01,
-  max.iter = 2,
+  max.iter = 5,
   replacements = list(
     c('g300','g500','g300_g500'),
     c('g300','g700','g300_g700')

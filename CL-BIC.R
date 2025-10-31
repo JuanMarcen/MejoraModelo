@@ -48,7 +48,6 @@ eff_number_param <- function(models, weights = 1, stations_df){
   tau <- models[[1]]$tau
   n <- length(models[[1]]$fitted.values)
   num_coef <- length(models[[1]]$coefficients)
-  H <- matrix(0, ncol = num_coef, nrow = num_coef)
   # sigmas for each model
   sigmas <- numeric()
   for (i in 1:dim(stations_df)[1]){
@@ -61,13 +60,17 @@ eff_number_param <- function(models, weights = 1, stations_df){
   X_H <- list()
   for (i in 1:dim(stations_df)[1]){
     model <- models[[i]]
+    # n <- length(model$fitted.values)
+    # x <- matrix(0, ncol = num_coef, nrow = num_coef)
+    # for (tl in 1:n){
+    #   x <- x +  (tau * (1 - tau) / sigmas[i]^2) * model$x[tl, ] %*% t(model$x[tl, ])
+    # }
+    # 
+    # X_H[[as.character(stations_df$STAID[i])]] <- x
     
     x <- matrix(0, ncol = num_coef, nrow = num_coef)
-    for (tl in 1:n){
-      x <- x +  (tau * (1 - tau) / sigmas[i]^2) * model$x[tl, ] %*% t(model$x[tl, ])
-    }
+    X_H[[as.character(stations_df$STAID[i])]] <- (tau * (1 - tau) / sigmas[i]^2) * crossprod(model$x)
     
-    X_H[[as.character(stations_df$STAID[i])]] <- x
   }
   
   # I need the weights (argument)
@@ -75,6 +78,7 @@ eff_number_param <- function(models, weights = 1, stations_df){
     weights <- rep(1, times = dim(stations_df)[1])
   }
   # cat('weights: ', weights, '\n')
+  H <- matrix(0, ncol = num_coef, nrow = num_coef)
   for (i in 1:dim(stations_df)[1]){
     H <- H + weights[i] * X_H[[i]]
   }
@@ -88,14 +92,21 @@ eff_number_param <- function(models, weights = 1, stations_df){
   X_J <- list()
   for (i in 1:dim(stations_df)[1]){
     model <- models[[i]]
-    check_sq <- psi_tau(model$y - model$x %*% model$coefficients, tau)^2
+    # check_sq <- psi_tau(model$y - model$x %*% model$coefficients, tau)^2
+    # 
+    # x <- matrix(0, ncol = num_coef, nrow = num_coef)
+    # for (tl in 1:n){
+    #   x <- x + (1 / sigmas[i]^2) * check_sq[tl] * model$x[tl, ] %*% t(model$x[tl, ])
+    # }
+    # 
+    # X_J[[as.character(stations_df$STAID[i])]] <- x
     
-    x <- matrix(0, ncol = num_coef, nrow = num_coef)
-    for (tl in 1:n){
-      x <- x + (1 / sigmas[i]^2) * check_sq[tl] * model$x[tl, ] %*% t(model$x[tl, ])
-    }
+    resid <- model$residuals
+    check_sq <- psi_tau(resid, tau)^2
     
-    X_J[[as.character(stations_df$STAID[i])]] <- x
+    x.inner <- check_sq * model$x
+    
+    X_J[[as.character(stations_df$STAID[i])]] <- (1 / sigmas[i]^2) * crossprod(x.inner, model$x)
   }
   
   J <- matrix(0, ncol = num_coef, nrow = num_coef)
@@ -109,6 +120,8 @@ eff_number_param <- function(models, weights = 1, stations_df){
   #eff_param <- sum(diag(H %*% solve(G))) - 1 #substract the intercept
   
   eff_param.2 <- sum(diag(J %*% solve(H))) - 1
+  
+  #cat('Num.eff.param: ', eff_param.2, '\n')
   return(eff_param.2)
 }
 
@@ -146,7 +159,8 @@ CLBIC <- function(models, weights = 1, eff_param = FALSE, gamma = 0, p = 100,
   #cat(n,k,'\n')
   
   CLBIC <- suppressWarnings(
-    -2 * logCL + k * (log(n) + 1) + 2 * gamma * log(choose(p,k))
+    -2 * logCL + k * (log(n) + 1) 
+    #+ 2 * gamma * log(choose(p,round(k)))
   )
   
   
@@ -170,25 +184,32 @@ R1_global <- function(formula, stations_df, data, tau){
 
 iterative.weights <- function(data, stations_df, initial.weights = rep(1, nrow(stations_df)), 
                               formula,
-                              tau, tol = 1e-6, max.iter = 50, trace = FALSE){
+                              tau, models,
+                              eff_param, gamma, p,
+                              tol = 1e-6, max.iter = 50, trace = FALSE){
   beta_old <- NULL
-  weights <- initial.weights
+  weights <- list()
+  weights[[1]] <- initial.weights
   
   for (iter in 1:max.iter){ 
-    cat('Iteration ', iter, '\n')
-    cat('Weights: \n')
-    print(weights)
-    cat('\n')
+    # cat('Iteration ', iter, '\n')
+    # cat('Weights: \n')
+    # print(weights[[iter]])
+    # cat('\n')
     
-    data$w <- rep(weights, each = length(unique(data$t)) * length(unique(data$l)))
+    CLBIC.new <- CLBIC(models = models, weights = weights[[iter]], stations_df = stations,
+                       eff_param = eff_param, gamma = gamma, p = p)
+    # print(CLBIC.new)
+    
+    data$w <- rep(weights[[iter]], each = length(unique(data$t)) * length(unique(data$l)))
     
     mod <- rq(formula, tau = tau, data = data, 
               weights = w)
     
     beta <- coef(mod)
-    cat('Betas: \n')
-    print(beta)
-    cat('\n')
+    # cat('Betas: \n')
+    # print(beta)
+    # cat('\n')
     
     # recalcular pesos
     # Computation of sensitivity matrix H
@@ -216,7 +237,7 @@ iterative.weights <- function(data, stations_df, initial.weights = rep(1, nrow(s
       
       H.i[[as.character(stations_df$STAID[i])]] <- (tau * (1 - tau) / sigmas[i]^2) * crossprod(mod$x[ind, ])
     }
-  
+    
     # Computation of variability matrix J
     psi_tau <- function(u, tau){
       return(tau - as.numeric(u < 0))
@@ -242,6 +263,7 @@ iterative.weights <- function(data, stations_df, initial.weights = rep(1, nrow(s
     
     weights.new <- nrow(stations_df) * weights.new / sum(weights.new)
     
+    
     # criterio de convergencia sobre beta
     if (!is.null(beta_old)) {
       norm <- sqrt(sum((beta - beta_old)^2))
@@ -253,11 +275,13 @@ iterative.weights <- function(data, stations_df, initial.weights = rep(1, nrow(s
       }
     }
     beta_old <- beta
-    weights <- weights.new
+    weights[[iter + 1]] <- weights.new
+    
+    
     
   }
   
-  return(weights)
+  return(list(CLBIC = CLBIC.new, weights = weights[[iter]]))
 }
 
 step_rq_CLBIC<-function(initial_models,
@@ -270,7 +294,7 @@ step_rq_CLBIC<-function(initial_models,
                         gamma = 0, 
                         p = 100,
                         trace = TRUE,
-                        iterative.weights = FALSE,
+                        it.weights = FALSE,
                         tol = 1e-6,
                         max.iter = 50,
                         #harmonics = FALSE,
@@ -279,8 +303,10 @@ step_rq_CLBIC<-function(initial_models,
                           c('g300','g700','g300_g700')
                           )){
   
+  
+  
   # in order to substract the scale part
-  strip_scale <- function(x) sub("^scale\\((.*)\\)$", "\\1", x)
+  strip_scale <- function(x) sub("^scale\\((.*)\\)$", "\\1", x) #not necessary anymore
   
   if (eff_param == TRUE){
     cat('Se va a utilizar el número efectivo de parámetros\n')
@@ -288,7 +314,7 @@ step_rq_CLBIC<-function(initial_models,
     cat('Se va a utlizar el número de parámetros\n')
   }
   
-  if (iterative.weights == TRUE){
+  if (it.weights == TRUE){
     cat('Los pesos se van a calcular de manera iterativa\n')
   }
   # size of covariates set
@@ -315,20 +341,23 @@ step_rq_CLBIC<-function(initial_models,
   model_current <- initial_models[[1]]
   
   #CALCULO DE WEIGHTS
-  if (iterative.weights == TRUE){
-    weights <- iterative.weights(data = data, stations_df = stations_df, 
+  if (it.weights == TRUE){
+    aux.list <- iterative.weights(data = data, stations_df = stations_df, 
                                  initial.weights = rep(1, nrow(stations_df)), 
                                  formula = formula_current,
-                                 tau = tau, tol = tol, max.iter = max.iter, 
+                                 tau = tau, models = initial_models,
+                                 eff_param = eff_param, gamma = gamma, p = p,
+                                 tol = tol, max.iter = max.iter, 
                                  trace = FALSE)
+    weights.use <- aux.list[['weights']]
+    best_CLBIC <- aux.list[['CLBIC']]
   }else{
-    weights <- weights
+    weights.use <- weights
+    best_CLBIC <- CLBIC(initial_models, weights.use, eff_param, gamma, p, stations_df = stations_df)
   }
   
-  best_CLBIC <- CLBIC(initial_models, weights, eff_param, gamma, p, stations_df = stations_df)
-  
   CLBIC.initial <- best_CLBIC
-  
+  # print(CLBIC.initial)
   selected_vars <- attr(terms(formula(model_current)), "term.labels")
   #print(selected_vars)
   remaining_vars <- setdiff(vars, selected_vars)
@@ -379,18 +408,24 @@ step_rq_CLBIC<-function(initial_models,
       
       # Si todo fue bien:
       #CALCULO DE WEIGHTS
-      print(formula_try)
-      if (iterative.weights == TRUE){
-        weights <- iterative.weights(data = data, stations_df = stations_df, 
+      #print(formula_try)
+      if (it.weights == TRUE){
+        aux.list <- iterative.weights(data = data, stations_df = stations_df, 
                                      initial.weights = rep(1, nrow(stations_df)), 
                                      formula = formula_try,
-                                     tau = tau, tol = tol, max.iter = max.iter, 
+                                     tau = tau, models = models_stations,
+                                     eff_param = eff_param, gamma = gamma, p = p,
+                                     tol = tol, max.iter = max.iter, 
                                      trace = FALSE)
+        weights.use <- aux.list[['weights']]
+        CLBIC_val <- aux.list[['CLBIC']]
       }else{
-        weights <- weights
+        weights.use <- weights
+        CLBIC_val <- CLBIC(models_stations, weights.use, eff_param, gamma, p, stations_df = stations_df)
       }
-      CLBIC_val <- CLBIC(models_stations, weights, eff_param, gamma, p, stations_df = stations_df)
+      # print(CLBIC_val)
       CLBICs <- c(CLBICs, CLBIC_val)
+      # print(CLBICs)
       models[[var]] <- list(models = models_stations, 
                             formula = formula_try, 
                             CLBIC = CLBIC_val)
@@ -471,17 +506,21 @@ step_rq_CLBIC<-function(initial_models,
           
           if (error_occurred != TRUE){
             #CALCULO DE WEIGHTS
-            if (iterative.weights == TRUE){
-              weights <- iterative.weights(data = data, stations_df = stations_df, 
-                                           initial.weights = rep(1, nrow(stations_df)), 
-                                           formula = formula_try,
-                                           tau = tau, tol = tol, max.iter = max.iter, 
-                                           trace = FALSE)
+            if (it.weights == TRUE){
+              aux.list <- iterative.weights(data = data, stations_df = stations_df, 
+                                            initial.weights = rep(1, nrow(stations_df)), 
+                                            formula = formula_try,
+                                            tau = tau, models = models_stations,
+                                            eff_param = eff_param, gamma = gamma, p = p,
+                                            tol = tol, max.iter = max.iter, 
+                                            trace = FALSE)
+              weights.use <- aux.list[['weights']]
+              CLBIC_val <- aux.list[['CLBIC']]
             }else{
-              weights <- weights
+              weights.use <- weights
+              CLBIC_val <- CLBIC(models_stations, weights.use, eff_param, gamma, p, stations_df = stations_df)
             }
-            CLBIC_val <- CLBIC(models_stations, weights, eff_param, gamma, p, stations_df = stations_df)
-            
+
             combos_probados <- c(combos_probados, combo_id)
             
             if(CLBIC_val < best_CLBIC){
@@ -560,17 +599,21 @@ step_rq_CLBIC<-function(initial_models,
           
           if (error_occurred != TRUE){
             #CALCULO DE WEIGHTS
-            if (iterative.weights == TRUE){
-              weights <- iterative.weights(data = data, stations_df = stations_df, 
-                                           initial.weights = rep(1, nrow(stations_df)), 
-                                           formula = formula_try,
-                                           tau = tau, tol = tol, max.iter = max.iter, 
-                                           trace = FALSE)
+            if (it.weights == TRUE){
+              aux.list <- iterative.weights(data = data, stations_df = stations_df, 
+                                            initial.weights = rep(1, nrow(stations_df)), 
+                                            formula = formula_try,
+                                            tau = tau, models = models_stations,
+                                            eff_param = eff_param, gamma = gamma, p = p,
+                                            tol = tol, max.iter = max.iter, 
+                                            trace = FALSE)
+              weights.use <- aux.list[['weights']]
+              CLBIC_val <- aux.list[['CLBIC']]
             }else{
-              weights <- weights
+              weights.use <- weights
+              CLBIC_val <- CLBIC(models_stations, weights.use, eff_param, gamma, p, stations_df = stations_df)
             }
-            CLBIC_val <- CLBIC(models_stations, weights, eff_param, gamma, p, stations_df = stations_df)
-            
+
             combos_probados <- c(combos_probados, combo_id)
             
             if (trace){
@@ -645,17 +688,20 @@ step_rq_CLBIC<-function(initial_models,
           
           if (error_occurred != TRUE){
             #CALCULO DE WEIGHTS
-            if (iterative.weights == TRUE){
-              weights <- iterative.weights(data = data, stations_df = stations_df, 
-                                           initial.weights = rep(1, nrow(stations_df)), 
-                                           formula = formula_try,
-                                           tau = tau, tol = tol, max.iter = max.iter, 
-                                           trace = FALSE)
+            if (it.weights == TRUE){
+              aux.list <- iterative.weights(data = data, stations_df = stations_df, 
+                                            initial.weights = rep(1, nrow(stations_df)), 
+                                            formula = formula_try,
+                                            tau = tau, models = models_stations,
+                                            eff_param = eff_param, gamma = gamma, p = p,
+                                            tol = tol, max.iter = max.iter, 
+                                            trace = FALSE)
+              weights.use <- aux.list[['weights']]
+              CLBIC_val <- aux.list[['CLBIC']]
             }else{
-              weights <- weights
+              weights.use <- weights
+              CLBIC_val <- CLBIC(models_stations, weights.use, eff_param, gamma, p, stations_df = stations_df)
             }
-            CLBIC_val <- CLBIC(models_stations, weights, eff_param, gamma, p, stations_df = stations_df)
-            
             combos_probados <- c(combos_probados, combo_id)
             
             if (trace){
@@ -699,6 +745,7 @@ step_rq_CLBIC<-function(initial_models,
   model_current$CLBIC <- best_CLBIC
   
   
+  # esto hace que tarde un pooc cuadno está en el final 
   models_solution$R1 <- suppressWarnings(
     R1_global(formula_current, stations_df, data, tau)
   )
@@ -719,7 +766,7 @@ step_rq_CLBIC<-function(initial_models,
     cat("\nFinal model:\n")
     print(formula_current)
     if (eff_param ==TRUE) cat('Número de parámetros efectivo: ', 
-                              eff_number_param(models_solution$models, weights, stations_df = stations_df),
+                              eff_number_param(models_solution$models, weights.use, stations_df = stations_df),
                               '\n')
     #CALCULO DE WEIGHTS GUARDAR LAS INICIALES Y PONERLAS
     cat('CLBIC initial: ', CLBIC.initial,
