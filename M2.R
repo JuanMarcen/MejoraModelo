@@ -1,24 +1,21 @@
-# M1: Only harmonics, elev, dist and t:month
+# M1: g300, g500 and g700
 
 # only need for the moment the datframe 
 # with elev, dist, l, t, harmonics, and month dummy
 
 rm(list = ls())
+
 library(qs)
+
 stations <- readRDS('stations.rds')
-df <- qread('df_jun_ag.qs') ## MODIFICAR EN UN FUTURO
+df_jun_ag <- qread('df_jun_ag.qs')
+
 
 # subset of the data frame
 library(dplyr)
 library(lubridate)
-df.M1 <- df %>%
-  select(Date, station, Y, l, t, s.1, c.1, elev, dist) %>%
-  mutate(
-    month = month(Date),
-    `t:month6` = ifelse(month == 6, t, 0),
-    `t:month7` = ifelse(month == 7, t, 0),
-    `t:month8` = ifelse(month == 8, t, 0)
-  )
+df.M2 <- df_jun_ag %>%
+  select(Date, station, Y, l, t, g300, g500, g700, elev, dist) 
 
 #----BAYESIAN MODELS----
 library(spTReg)
@@ -41,14 +38,13 @@ stations <- st_transform(
 
 coords_km <- st_coordinates(stations) / 1000
 
-#formula 
-vars <- c('s.1', 'c.1', '`t:month6`', '`t:month7`', '`t:month8`')
-formula <- as.formula('Y ~ s.1 + c.1 + `t:month6` + `t:month7` + `t:month8` + elev + dist ' )
+# formula of model
+formula <- as.formula('Y ~ g300 + g500 + g700 + elev + dist' )
+vars <- c('g300', 'g500', 'g700')
 
 # BAYESIAN MODELS (Run at other computer)
 source('metrics_bay.R')
 
-# Parallel fitting
 # PARALLEL COMPUTATION  
 n.fixed.eff <- length(vars) + 3 # intercept, dist and elev
 n.random.eff <- length(vars) + 1 # random effects only for the covariates and intercept
@@ -80,22 +76,22 @@ library(parallel)
 # number of nodes
 cl <- makeCluster(3)
 
-# Export objects and functions needed
-clusterExport(cl, c("mod_bay", "formula.M1", "df.M1", "vars.M1", "coords_km"))
+# export objects and functions needed
+clusterExport(cl, c("mod_bay", "formula", "df.M2", "vars", "coords_km"))
 
-# load needed libraries
+# load needed library
 clusterEvalQ(cl, library(spTReg))
 
-# Fitting of 3 models in parallel
+# Run 3 parallel fitting of models
 resultados <- parLapply(
   cl,
-  X = init.list.M1,
+  X = inits_list,
   fun = function(inits){
     mod_bay(
-      formula = formula.M1, 
-      data = df.M1, 
+      formula = formula, 
+      data = df.M2, 
       tau = 0.95,                      # Aquí tu tau fijo
-      vars = vars.M1, 
+      vars = vars, 
       coords = coords_km, 
       start_beta = inits$start_beta,   # Cambia beta
       inic_procesos = inits$inic_proc, # Cambia procesos
@@ -117,28 +113,52 @@ plot(as.numeric(mod3$p.params.samples[, 1]), type = 'l')
 lines(as.numeric(mod1$p.params.samples[, 1]), col = 'tomato')
 lines(as.numeric(mod2$p.params.samples[, 1]), col = 'grey')
 
-# final chain of parameters
+#final chain of parameters
 #join the 3 chains estimated
 final.chain <-rbind(
   mod1$p.params.samples,
   mod2$p.params.samples,
   mod3$p.params.samples
-)
+                    )
 final.chain <- as.data.frame(final.chain)
 plot(as.numeric(final.chain[,1]), type = 'l')
 
-#betas
+
+#----METRICS TO ASSES GOODNESS OF FIT----
+#mean values of the chains of parameters
 betas_q0.95 <- betas(vars, final.chain)
+
 
 #predictions
 elev_sc <- scale(stations_dist$HGHT)
 dist_sc <- scale(stations_dist$DIST)
 
-pred_q0.95 <- predictions(vars, betas_q0.95, df.M1, cuantil = 0.95)
-pred_q0.95 <- cbind(df.M1[,c('Date', 'station', 'Y')], pred_q0.95)
+pred_q0.95 <- predictions(vars, betas_q0.95, df.M2, cuantil = 0.95)
+pred_q0.95 <- cbind(df.M2[,c('Date', 'station', 'Y')], pred_q0.95)
 
-#R1
-R1_bay_q0.95 <- R1_bay(pred_q0.95, 0.95, df.M1)
+# R1
+R1_bay_q0.95 <- R1_bay(pred_q0.95, 0.95, df.M2)
 
-#rho
+
+# rho
 rho_q0.95 <- rho_bay(pred_q0.95, 0.95)
+
+
+# 
+# save(df.M1,
+#      vars,
+#      stations,
+#      stations_dist,
+#      elev_sc, dist_sc,
+#      local.models.q0.50,
+#      local.models.q0.95,
+#      formula,
+#      mod_q0.50_bay,
+#      mod_q0.95_bay,
+#      pred_q0.95,
+#      pred_q0.50,
+#      R1_bay_q0.50,
+#      R1_bay_q0.95,
+#      rho_q0.50,
+#      rho_q0.95,
+#      file = 'dataM1.RData')

@@ -1,4 +1,4 @@
-# M1: Only harmonics, elev, dist and t:month
+# M3: M1 + M2
 
 # only need for the moment the datframe 
 # with elev, dist, l, t, harmonics, and month dummy
@@ -11,8 +11,8 @@ df <- qread('df_jun_ag.qs') ## MODIFICAR EN UN FUTURO
 # subset of the data frame
 library(dplyr)
 library(lubridate)
-df.M1 <- df %>%
-  select(Date, station, Y, l, t, s.1, c.1, elev, dist) %>%
+df.M3 <- df %>%
+  select(Date, station, Y, l, t, s.1, c.1, elev, dist, g300, g500, g700) %>%
   mutate(
     month = month(Date),
     `t:month6` = ifelse(month == 6, t, 0),
@@ -42,8 +42,8 @@ stations <- st_transform(
 coords_km <- st_coordinates(stations) / 1000
 
 #formula 
-vars <- c('s.1', 'c.1', '`t:month6`', '`t:month7`', '`t:month8`')
-formula <- as.formula('Y ~ s.1 + c.1 + `t:month6` + `t:month7` + `t:month8` + elev + dist ' )
+vars <- c('s.1', 'c.1', '`t:month6`', '`t:month7`', '`t:month8`',  'g300', 'g500', 'g700')
+formula <- as.formula(paste('Y ~', paste(vars, collapse = '+'), '+ elev + dist'))
 
 # BAYESIAN MODELS (Run at other computer)
 source('metrics_bay.R')
@@ -81,7 +81,7 @@ library(parallel)
 cl <- makeCluster(3)
 
 # Export objects and functions needed
-clusterExport(cl, c("mod_bay", "formula.M1", "df.M1", "vars.M1", "coords_km"))
+clusterExport(cl, c("mod_bay", "formula", "df.M3", "vars", "coords_km"))
 
 # load needed libraries
 clusterEvalQ(cl, library(spTReg))
@@ -89,13 +89,13 @@ clusterEvalQ(cl, library(spTReg))
 # Fitting of 3 models in parallel
 resultados <- parLapply(
   cl,
-  X = init.list.M1,
+  X = inits_list,
   fun = function(inits){
     mod_bay(
-      formula = formula.M1, 
-      data = df.M1, 
+      formula = formula, 
+      data = df.M3, 
       tau = 0.95,                      # Aquí tu tau fijo
-      vars = vars.M1, 
+      vars = vars, 
       coords = coords_km, 
       start_beta = inits$start_beta,   # Cambia beta
       inic_procesos = inits$inic_proc, # Cambia procesos
@@ -134,11 +134,13 @@ betas_q0.95 <- betas(vars, final.chain)
 elev_sc <- scale(stations_dist$HGHT)
 dist_sc <- scale(stations_dist$DIST)
 
-pred_q0.95 <- predictions(vars, betas_q0.95, df.M1, cuantil = 0.95)
-pred_q0.95 <- cbind(df.M1[,c('Date', 'station', 'Y')], pred_q0.95)
+pred_q0.95 <- predictions(vars, betas_q0.95, df.M3, cuantil = 0.95)
+pred_q0.95 <- cbind(df.M3[,c('Date', 'station', 'Y')], pred_q0.95)
 
 #R1
-R1_bay_q0.95 <- R1_bay(pred_q0.95, 0.95, df.M1)
+R1_bay_q0.95 <- R1_bay(pred_q0.95, 0.95, df.M3)
 
 #rho
 rho_q0.95 <- rho_bay(pred_q0.95, 0.95)
+
+
