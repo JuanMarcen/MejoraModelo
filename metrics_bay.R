@@ -266,9 +266,9 @@ shrink.f.tr.plot <- function(models.list, type, vars){
   L <- length(models.list)
   
   ind <- length(vars) #number of parameters to study
-  mod1 <- models.q0.50.M1[[1]]
-  mod2 <- models.q0.50.M1[[2]]
-  mod3 <- models.q0.50.M1[[3]]
+  mod1 <- models.list[[1]]
+  mod2 <- models.list[[2]]
+  mod3 <- models.list[[3]]
   
   cont <- 0
   if (type == 'intercept'){
@@ -354,6 +354,92 @@ shrink.f.tr.plot <- function(models.list, type, vars){
                   mod3$p.params.samples[,paste0('beta',j,'(s',i,')')]), col = "salmon")
         
       }
+    }
+  }
+  
+}
+
+#ESS
+ESS <- function(final.chain, type, vars){
+  param_mod_def<-as.mcmc(final.chain)
+  
+  ind <- length(vars)
+  
+  if (type == 'intercept'){
+    ess_df<-as.data.frame(matrix(NA,ncol=2,nrow=40))
+    cont<-1
+    for (i in 1:40){
+      chains <- list(
+        param_mod_def[,"(Intercept)"] + 
+          param_mod_def[,"elev"] * scale(elev_sc)[i] + 
+          param_mod_def[,"dist"] * scale(dist_sc)[i] + 
+          param_mod_def[,paste0("beta1(s",i,")")]
+      )
+      ess<-effectiveSize(chains)
+      ess_df[cont,1]<-paste0("beta1(s",i,")")
+      ess_df[cont,2]<-round(ess,3)
+      cont<-cont+1
+      
+    }
+    print(ess_df)
+    cat('Number of stations with ESS < 200: ',
+        dim(ess_df[which(ess_df[,2]<=200),])[1], '\n')
+    cat('Station with least ESS: \n')
+    print(ess_df[which.min(ess_df[,2]),])
+  }else if (type == 'coef'){
+    for (j in 2:(ind + 1)){
+      ess_df<-as.data.frame(matrix(NA, ncol = 2, nrow = 40))
+      cont<-1
+      for (i in 1:40){
+        chains <- list(
+          param_mod_def[,j] + 
+            param_mod_def[,paste0("beta",j,"(s",i,")")]
+        )
+        ess<-effectiveSize(chains)
+        ess_df[cont,1]<-paste0("beta",j,"(s",i,")")
+        ess_df[cont,2]<-round(ess,3)
+        cont<-cont+1
+      }
+      print(ess_df)
+      cat('Number of stations with ESS < 200: ',
+          dim(ess_df[which(ess_df[,2]<=200),])[1], '\n')
+      cat('Station with least ESS: \n')
+      print(ess_df[which.min(ess_df[,2]),])
+    }
+    
+  }
+  
+}
+
+uncertainty <- function(final.chain, type, vars){
+  ind <- length(vars)
+  
+  if (type == 'intercept'){
+    for (i in 1:40){
+      q<-quantile(
+        final.chain[,"(Intercept)"] + 
+          final.chain[,"elev"] * scale(stations_dist$HGHT)[i] + 
+          final.chain[,"dist"] * scale(stations_dist$DIST)[i] + 
+          final.chain[,paste0("beta1(s",i,")")]
+        ,probs=c(0.025,0.975))
+      cat(paste0("beta1(s",i,")"),": ", round(q,3), "\n")
+    }
+  }else if (type == 'coef'){
+    for (j in 2:(ind + 1 )){
+      ic_df<-as.data.frame(matrix(NA,ncol=3,nrow=40))
+      colnames(ic_df)<-c('beta','2.5%','97.5%')
+      cont<-1
+      for (i in 1:40){
+        q <- quantile(
+          final.chain[,j] + 
+            final.chain[,paste0("beta",j,"(s",i,")")]
+          ,probs=c(0.025,0.975))
+        ic_df[cont,1]<-paste0("beta",j,"(s",i,")")
+        ic_df[cont,2]<-round(q[1],3)
+        ic_df[cont,3]<-round(q[2],3)
+        cont<-cont+1
+      }
+      print(ic_df)
     }
   }
   

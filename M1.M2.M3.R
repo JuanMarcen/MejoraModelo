@@ -161,8 +161,8 @@ models.q0.50.M1 <- mod.bay.parallel(n.mod = 3,
                               coords = coords_km,
                               init.list = init.list.M1,
                               tau = 0.50,
-                              n.samples = 100,
-                              n.burnin = 100,
+                              n.samples = 10,
+                              n.burnin = 10,
                               n.thin = 1,
                               n.report = 1)
 
@@ -175,8 +175,8 @@ models.q0.50.M2 <- mod.bay.parallel(n.mod = 3,
                                     coords = coords_km,
                                     init.list = init.list.M2,
                                     tau = 0.50,
-                                    n.samples = 100,
-                                    n.burnin = 100,
+                                    n.samples = 10,
+                                    n.burnin = 10,
                                     n.thin = 1,
                                     n.report = 1)
 
@@ -304,5 +304,30 @@ save(models.q0.50.M1, models.q0.50.M2, models.q0.50.M3,
 #----CONVERGENCE----
 #shrink factor and traceplots
 # modify to see if all are less that 1.1??
-shrink.f.tr.plot(models.q0.50.M1, type = 'coef', vars = vars.M1)
+load('fullmodels.RData')
 
+png('graphs/convergence/conv.q0.50.M3.int.png',height = 2000,width = 4000,res=150)
+par(mfrow=c(5,8))
+shrink.f.tr.plot(models.q0.50.M2, type = 'coef', vars = vars.M2)
+dev.off()
+
+# ESS
+ESS(final.chain.q0.50.M3, type = 'coef', vars = vars.M3)
+
+# uncertainty
+uncertainty(final.chain.q0.50.M1, 'coef', vars.M1)
+
+
+
+# extra 
+plot(1:64, unlist(rho.q0.50.M3$rho_años), type = 'l',
+     ylim = c(0,1), lwd = 2)
+abline(h = 0.5, col = 'red')
+lines(1:64, unlist(rho.q0.50.M1$rho_años), col = 'blue')
+lines(1:64, unlist(rho.q0.50.M2$rho_años), col = 'forestgreen')
+
+plot(1:92, unlist(rho.q0.50.M3$rho_dias), type = 'l',
+     ylim = c(0,1), lwd = 2)
+abline(h = 0.5, col = 'red')
+lines(1:92, unlist(rho.q0.50.M1$rho_dias), col = 'blue')
+lines(1:92, unlist(rho.q0.50.M2$rho_dias), col = 'forestgreen')
