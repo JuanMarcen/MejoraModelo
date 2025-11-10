@@ -1,12 +1,26 @@
-rm(list = ls())
+rm(list = setdiff(ls(), c('vars.M1', 'final.chain.q0.50.M1', 'df.M1',
+                          'vars.M2', 'final.chain.q0.50.M2', 'df.M2',
+                          'vars.M3', 'final.chain.q0.50.M3', 'df.M3',
+                          'final.chain.q0.95.M1', 
+                          'final.chain.q0.95.M2', 
+                          'final.chain.q0.95.M3', 
+                          'coords_km', 'stations', 'stations_dist'
+                          )))
 # mantengo 
 # vars, final.chain, coords, stations_dist, stations, df,
 library(stringr)
+library(coda)
+library(spTReg)
+library(dplyr)
+library(lubridate)
 grid <- readRDS('grid.rds')
 grid_km <- readRDS('grid_km.rds')
 grid_elev <- readRDS('grid_elev.rds')
 grid_dist <- readRDS('grid_dist.rds')
 
+source('metrics_bay.R')
+
+#----BAYESIAN KRIGING----
 bay.kriging <- function(final.chain, vars, coords, grid, stations_dist){
   #number of spatial coeff
   ind <- length(vars) + 1
@@ -147,4 +161,364 @@ bay.kriging <- function(final.chain, vars, coords, grid, stations_dist){
   )
 }
 
-basura <- bay.kriging(final.chain.q0.50.M2, vars.M2, coords_km, grid_km, stations_dist)
+bay.kriging.q0.50.M1 <- bay.kriging(final.chain.q0.50.M1, vars.M1, 
+                                    coords_km, grid_km, stations_dist)
+bay.kriging.q0.50.M2 <- bay.kriging(final.chain.q0.50.M2, vars.M2, 
+                                    coords_km, grid_km, stations_dist)
+bay.kriging.q0.50.M3 <- bay.kriging(final.chain.q0.50.M3, vars.M3, 
+                                    coords_km, grid_km, stations_dist)
+
+bay.kriging.q0.95.M1 <- bay.kriging(final.chain.q0.95.M1, vars.M1, 
+                                    coords_km, grid_km, stations_dist)
+bay.kriging.q0.95.M2 <- bay.kriging(final.chain.q0.95.M2, vars.M2, 
+                                    coords_km, grid_km, stations_dist)
+bay.kriging.q0.95.M3 <- bay.kriging(final.chain.q0.95.M3, vars.M3, 
+                                    coords_km, grid_km, stations_dist)
+
+#----QUANTILE PREDICTION----
+library(qs)
+X.grid <- qread('X_grid.qs')
+
+
+#quantile prediction using means
+quantile.pred <- function(X.grid, data.model,
+                          vars, final.chain, betas.bay.kriging){
+  
+  pred.df <- matrix(NA, nrow = length(unique(data.model$Date)), ncol = 790)
+  pred.df <- as.data.frame(pred.df)
+  
+  vars <- gsub('`', '', vars)
+  
+  # betas elevation and distance
+  elev <- mean(final.chain[, 'elev'])
+  dist <- mean(final.chain[, 'dist'])
+ 
+  elev_sd <- sd(stations_dist$HGHT)
+  dist_sd <- sd(stations_dist$DIST)
+  
+  for (i in 1:nrow(pred.df)){
+    date <- unique(data.model$Date)[i]
+    ind <- which(X.grid$Date == date)
+    vars.grid <- X.grid[ind, vars]
+    # Extraer las variables cuadráticas (entre I(...) )
+    # cuad_vars <- gsub("^I\\((.*)\\^2\\)$", "\\1", vars[grepl("^I\\(.*\\^2\\)$", vars)])
+    # # Crear las columnas cuadradas a partir de G
+    # cuad_df <- as.data.frame(sapply(cuad_vars, function(var) G[[var]]^2))
+    # names(cuad_df) <- paste0("I(", cuad_vars, "^2)")
+    # # Extraer las variables normales
+    norm_vars <- vars[!grepl("^I\\(.*\\^2\\)$", vars)]
+    norm_df <- vars.grid[, norm_vars, drop = FALSE]
+    # # Combinar en orden según vars
+    # df_final <- cbind(norm_df, cuad_df)[, vars]
+    
+    df_final <- norm_df[, vars]
+    
+    pred <- matrix(colMeans(betas.bay.kriging[['beta1']]), nrow=1)
+    
+    for (j in 1:length(vars)){
+      pred <- pred + matrix(colMeans(betas.bay.kriging[[paste0('beta', j + 1)]], na.rm = T),nrow=1) * t(df_final[, vars[j]])
+    }
+    
+    #add distance and elevation
+    pred.df[i, ] <- pred + elev * grid_elev / elev_sd + dist * grid_dist/dist_sd
+
+    print(paste(date, pred.df[i, 1]))
+  }
+  
+  rownames(pred.df) <- unique(data.model$Date)
+  
+  return(pred.df)
+}
+
+
+quantile.q0.50.M1 <- quantile.pred(X.grid = X.grid, data.model = df.M1, vars = vars.M1,
+                                   final.chain = final.chain.q0.50.M1,
+                                   betas.bay.kriging = bay.kriging.q0.50.M1)
+quantile.q0.50.M2 <- quantile.pred(X.grid = X.grid, data.model = df.M2, vars = vars.M2,
+                                   final.chain = final.chain.q0.50.M2,
+                                   betas.bay.kriging = bay.kriging.q0.50.M2)
+quantile.q0.50.M3 <- quantile.pred(X.grid = X.grid, data.model = df.M3, vars = vars.M3,
+                                   final.chain = final.chain.q0.50.M3,
+                                   betas.bay.kriging = bay.kriging.q0.50.M3)
+
+quantile.q0.95.M1 <- quantile.pred(X.grid = X.grid, data.model = df.M1, vars = vars.M1,
+                                   final.chain = final.chain.q0.95.M1,
+                                   betas.bay.kriging = bay.kriging.q0.95.M1)
+quantile.q0.95.M2 <- quantile.pred(X.grid = X.grid, data.model = df.M2, vars = vars.M2,
+                                   final.chain = final.chain.q0.95.M2,
+                                   betas.bay.kriging = bay.kriging.q0.95.M2)
+quantile.q0.95.M3 <- quantile.pred(X.grid = X.grid, data.model = df.M3, vars = vars.M3,
+                                   final.chain = final.chain.q0.95.M3,
+                                   betas.bay.kriging = bay.kriging.q0.95.M3)
+
+#full quantile prediction (using whole chain)
+quantile.pred.total <- function(X.grid, data.model, vars, 
+                                final.chain, betas.bay.kriging, 
+                                year1, year2, month) {
+  
+
+  elev <- final.chain[, 'elev']
+  dist <- final.chain[, 'dist']
+  
+  elev_sd <- sd(stations_dist$HGHT)
+  dist_sd <- sd(stations_dist$DIST)
+  
+  vars <- gsub('`', '', vars)
+  
+  dates <- unique(data.model$Date[year(data.model$Date) >= year1 &
+                            year(data.model$Date) <= year2 &
+                            month(data.model$Date) == month])
+  
+  # list for predictions storage
+  pred_list <- vector("list", length(dates))
+  
+  # cuad_vars <- gsub("^I\\((.*)\\^2\\)$", "\\1", vars[grepl("^I\\(.*\\^2\\)$", vars)])
+  norm_vars <- vars[!grepl("^I\\(.*\\^2\\)$", vars)]
+  
+  for (i in seq_along(dates)) {
+    date <- dates[i]
+    ind <- which(X.grid$Date == date)
+    vars.grid <- X.grid[ind, vars, drop = FALSE]
+    
+    # Crea data frame de variables cuadradas
+    # cuad_df <- as.data.frame(lapply(cuad_vars, function(var) vars.grid[[var]]^2))
+    # names(cuad_df) <- paste0("I(", cuad_vars, "^2)")
+    
+    # Combina y ordena columnas
+    norm_df <- vars.grid[, norm_vars, drop = FALSE]
+    # df_final <- cbind(norm_df, cuad_df)[, vars, drop = FALSE]
+    df_final <- cbind(norm_df)[, vars, drop = FALSE]
+    
+    # Initialize pred with intercept
+    pred <- betas.bay.kriging[['beta1']]
+    
+    # Add effect of variables
+    for (j in seq_along(vars)) {
+      pred <- pred + sweep(betas.bay.kriging[[paste0('beta', j + 1)]], 2, t(df_final[[vars[j]]]), FUN = '*')
+    }
+    
+    # add terms of distance and elevation
+    elev.matrix <- outer(elev, grid_elev, "*") / elev_sd
+    dist.matrix <- outer(dist, grid_dist, "*") / dist_sd
+    
+    pred <- pred + elev.matrix + dist.matrix
+    
+    pred_list[[i]] <- pred
+    if (i %% 10 == 0 || i == 1) cat("Progreso:", i, "/", length(dates), "\n")
+  }
+  
+  # join all to calculate uncertainty
+  pred.all <- do.call(rbind, pred_list)
+  return(pred.all)
+}
+
+# quantile 0.50
+# first decade 
+#M1
+quantile.q0.50.M1.1dec.jun <- quantile.pred.total(X.grid = X.grid, data.model = df.M1, 
+                                                  vars = vars.M1,
+                                                  final.chain = final.chain.q0.50.M1, 
+                                                  betas.bay.kriging = bay.kriging.q0.50.M1,
+                                                  year1 = 1960, year2 = 1969, month = '6')
+quantile.q0.50.M1.1dec.jul <- quantile.pred.total(X.grid = X.grid, data.model = df.M1, 
+                                                  vars = vars.M1,
+                                                  final.chain = final.chain.q0.50.M1, 
+                                                  betas.bay.kriging = bay.kriging.q0.50.M1,
+                                                  year1 = 1960, year2 = 1969, month = '7')
+quantile.q0.50.M1.1dec.aug <- quantile.pred.total(X.grid = X.grid, data.model = df.M1, 
+                                                  vars = vars.M1,
+                                                  final.chain = final.chain.q0.50.M1, 
+                                                  betas.bay.kriging = bay.kriging.q0.50.M1,
+                                                  year1 = 1960, year2 = 1969, month = '8')
+#M2
+quantile.q0.50.M2.1dec.jun <- quantile.pred.total(X.grid = X.grid, data.model = df.M2, 
+                                                  vars = vars.M2,
+                                                  final.chain = final.chain.q0.50.M2, 
+                                                  betas.bay.kriging = bay.kriging.q0.50.M2,
+                                                  year1 = 1960, year2 = 1969, month = '6')
+quantile.q0.50.M2.1dec.jul <- quantile.pred.total(X.grid = X.grid, data.model = df.M2, 
+                                                  vars = vars.M2,
+                                                  final.chain = final.chain.q0.50.M2, 
+                                                  betas.bay.kriging = bay.kriging.q0.50.M2,
+                                                  year1 = 1960, year2 = 1969, month = '7')
+quantile.q0.50.M2.1dec.aug <- quantile.pred.total(X.grid = X.grid, data.model = df.M2, 
+                                                  vars = vars.M2,
+                                                  final.chain = final.chain.q0.50.M2, 
+                                                  betas.bay.kriging = bay.kriging.q0.50.M2,
+                                                  year1 = 1960, year2 = 1969, month = '8')
+
+#M3
+quantile.q0.50.M3.1dec.jun <- quantile.pred.total(X.grid = X.grid, data.model = df.M3, 
+                                                vars = vars.M3,
+                                                final.chain = final.chain.q0.50.M3, 
+                                                betas.bay.kriging = bay.kriging.q0.50.M3,
+                                                year1 = 1960, year2 = 1969, month = '6')
+quantile.q0.50.M3.1dec.jul <- quantile.pred.total(X.grid = X.grid, data.model = df.M3, 
+                                                  vars = vars.M3,
+                                                  final.chain = final.chain.q0.50.M3, 
+                                                  betas.bay.kriging = bay.kriging.q0.50.M3,
+                                                  year1 = 1960, year2 = 1969, month = '7')
+quantile.q0.50.M3.1dec.aug <- quantile.pred.total(X.grid = X.grid, data.model = df.M3, 
+                                                  vars = vars.M3,
+                                                  final.chain = final.chain.q0.50.M3, 
+                                                  betas.bay.kriging = bay.kriging.q0.50.M3,
+                                                  year1 = 1960, year2 = 1969, month = '8')
+
+# SECOND decade 
+#M1
+quantile.q0.50.M1.2dec.jun <- quantile.pred.total(X.grid = X.grid, data.model = df.M1, 
+                                                  vars = vars.M1,
+                                                  final.chain = final.chain.q0.50.M1, 
+                                                  betas.bay.kriging = bay.kriging.q0.50.M1,
+                                                  year1 = 2014, year2 = 2023, month = '6')
+quantile.q0.50.M1.2dec.jul <- quantile.pred.total(X.grid = X.grid, data.model = df.M1, 
+                                                  vars = vars.M1,
+                                                  final.chain = final.chain.q0.50.M1, 
+                                                  betas.bay.kriging = bay.kriging.q0.50.M1,
+                                                  year1 = 2014, year2 = 2023, month = '7')
+quantile.q0.50.M1.2dec.aug <- quantile.pred.total(X.grid = X.grid, data.model = df.M1, 
+                                                  vars = vars.M1,
+                                                  final.chain = final.chain.q0.50.M1, 
+                                                  betas.bay.kriging = bay.kriging.q0.50.M1,
+                                                  year1 = 2014, year2 = 2023, month = '8')
+#M2
+quantile.q0.50.M2.2dec.jun <- quantile.pred.total(X.grid = X.grid, data.model = df.M2, 
+                                                  vars = vars.M2,
+                                                  final.chain = final.chain.q0.50.M2, 
+                                                  betas.bay.kriging = bay.kriging.q0.50.M2,
+                                                  year1 = 2014, year2 = 2023, month = '6')
+quantile.q0.50.M2.2dec.jul <- quantile.pred.total(X.grid = X.grid, data.model = df.M2, 
+                                                  vars = vars.M2,
+                                                  final.chain = final.chain.q0.50.M2, 
+                                                  betas.bay.kriging = bay.kriging.q0.50.M2,
+                                                  year1 = 2014, year2 = 2023, month = '7')
+quantile.q0.50.M2.2dec.aug <- quantile.pred.total(X.grid = X.grid, data.model = df.M2, 
+                                                  vars = vars.M2,
+                                                  final.chain = final.chain.q0.50.M2, 
+                                                  betas.bay.kriging = bay.kriging.q0.50.M2,
+                                                  year1 = 2014, year2 = 2023, month = '8')
+
+#M3
+quantile.q0.50.M3.2dec.jun <- quantile.pred.total(X.grid = X.grid, data.model = df.M3, 
+                                                  vars = vars.M3,
+                                                  final.chain = final.chain.q0.50.M3, 
+                                                  betas.bay.kriging = bay.kriging.q0.50.M3,
+                                                  year1 = 2014, year2 = 2023, month = '6')
+quantile.q0.50.M3.2dec.jul <- quantile.pred.total(X.grid = X.grid, data.model = df.M3, 
+                                                  vars = vars.M3,
+                                                  final.chain = final.chain.q0.50.M3, 
+                                                  betas.bay.kriging = bay.kriging.q0.50.M3,
+                                                  year1 = 2014, year2 = 2023, month = '7')
+quantile.q0.50.M3.2dec.aug <- quantile.pred.total(X.grid = X.grid, data.model = df.M3, 
+                                                  vars = vars.M3,
+                                                  final.chain = final.chain.q0.50.M3, 
+                                                  betas.bay.kriging = bay.kriging.q0.50.M3,
+                                                  year1 = 2014, year2 = 2023, month = '8')
+
+
+
+
+# quantile 0.95 
+# first decade 
+#M1
+quantile.q0.95.M1.1dec.jun <- quantile.pred.total(X.grid = X.grid, data.model = df.M1, 
+                                                  vars = vars.M1,
+                                                  final.chain = final.chain.q0.95.M1, 
+                                                  betas.bay.kriging = bay.kriging.q0.95.M1,
+                                                  year1 = 1960, year2 = 1969, month = '6')
+quantile.q0.95.M1.1dec.jul <- quantile.pred.total(X.grid = X.grid, data.model = df.M1, 
+                                                  vars = vars.M1,
+                                                  final.chain = final.chain.q0.95.M1, 
+                                                  betas.bay.kriging = bay.kriging.q0.95.M1,
+                                                  year1 = 1960, year2 = 1969, month = '7')
+quantile.q0.95.M1.1dec.aug <- quantile.pred.total(X.grid = X.grid, data.model = df.M1, 
+                                                  vars = vars.M1,
+                                                  final.chain = final.chain.q0.95.M1, 
+                                                  betas.bay.kriging = bay.kriging.q0.95.M1,
+                                                  year1 = 1960, year2 = 1969, month = '8')
+#M2
+quantile.q0.95.M2.1dec.jun <- quantile.pred.total(X.grid = X.grid, data.model = df.M2, 
+                                                  vars = vars.M2,
+                                                  final.chain = final.chain.q0.95.M2, 
+                                                  betas.bay.kriging = bay.kriging.q0.95.M2,
+                                                  year1 = 1960, year2 = 1969, month = '6')
+quantile.q0.95.M2.1dec.jul <- quantile.pred.total(X.grid = X.grid, data.model = df.M2, 
+                                                  vars = vars.M2,
+                                                  final.chain = final.chain.q0.95.M2, 
+                                                  betas.bay.kriging = bay.kriging.q0.95.M2,
+                                                  year1 = 1960, year2 = 1969, month = '7')
+quantile.q0.95.M2.1dec.aug <- quantile.pred.total(X.grid = X.grid, data.model = df.M2, 
+                                                  vars = vars.M2,
+                                                  final.chain = final.chain.q0.95.M2, 
+                                                  betas.bay.kriging = bay.kriging.q0.95.M2,
+                                                  year1 = 1960, year2 = 1969, month = '8')
+
+#M3
+quantile.q0.95.M3.1dec.jun <- quantile.pred.total(X.grid = X.grid, data.model = df.M3, 
+                                                  vars = vars.M3,
+                                                  final.chain = final.chain.q0.95.M3, 
+                                                  betas.bay.kriging = bay.kriging.q0.95.M3,
+                                                  year1 = 1960, year2 = 1969, month = '6')
+quantile.q0.95.M3.1dec.jul <- quantile.pred.total(X.grid = X.grid, data.model = df.M3, 
+                                                  vars = vars.M3,
+                                                  final.chain = final.chain.q0.95.M3, 
+                                                  betas.bay.kriging = bay.kriging.q0.95.M3,
+                                                  year1 = 1960, year2 = 1969, month = '7')
+quantile.q0.95.M3.1dec.aug <- quantile.pred.total(X.grid = X.grid, data.model = df.M3, 
+                                                  vars = vars.M3,
+                                                  final.chain = final.chain.q0.95.M3, 
+                                                  betas.bay.kriging = bay.kriging.q0.95.M3,
+                                                  year1 = 1960, year2 = 1969, month = '8')
+
+# SECOND decade 
+#M1
+quantile.q0.95.M1.2dec.jun <- quantile.pred.total(X.grid = X.grid, data.model = df.M1, 
+                                                  vars = vars.M1,
+                                                  final.chain = final.chain.q0.95.M1, 
+                                                  betas.bay.kriging = bay.kriging.q0.95.M1,
+                                                  year1 = 2014, year2 = 2023, month = '6')
+quantile.q0.95.M1.2dec.jul <- quantile.pred.total(X.grid = X.grid, data.model = df.M1, 
+                                                  vars = vars.M1,
+                                                  final.chain = final.chain.q0.95.M1, 
+                                                  betas.bay.kriging = bay.kriging.q0.95.M1,
+                                                  year1 = 2014, year2 = 2023, month = '7')
+quantile.q0.95.M1.2dec.aug <- quantile.pred.total(X.grid = X.grid, data.model = df.M1, 
+                                                  vars = vars.M1,
+                                                  final.chain = final.chain.q0.95.M1, 
+                                                  betas.bay.kriging = bay.kriging.q0.95.M1,
+                                                  year1 = 2014, year2 = 2023, month = '8')
+#M2
+quantile.q0.95.M2.2dec.jun <- quantile.pred.total(X.grid = X.grid, data.model = df.M2, 
+                                                  vars = vars.M2,
+                                                  final.chain = final.chain.q0.95.M2, 
+                                                  betas.bay.kriging = bay.kriging.q0.95.M2,
+                                                  year1 = 2014, year2 = 2023, month = '6')
+quantile.q0.95.M2.2dec.jul <- quantile.pred.total(X.grid = X.grid, data.model = df.M2, 
+                                                  vars = vars.M2,
+                                                  final.chain = final.chain.q0.95.M2, 
+                                                  betas.bay.kriging = bay.kriging.q0.95.M2,
+                                                  year1 = 2014, year2 = 2023, month = '7')
+quantile.q0.95.M2.2dec.aug <- quantile.pred.total(X.grid = X.grid, data.model = df.M2, 
+                                                  vars = vars.M2,
+                                                  final.chain = final.chain.q0.95.M2, 
+                                                  betas.bay.kriging = bay.kriging.q0.95.M2,
+                                                  year1 = 2014, year2 = 2023, month = '8')
+
+#M3
+quantile.q0.95.M3.2dec.jun <- quantile.pred.total(X.grid = X.grid, data.model = df.M3, 
+                                                  vars = vars.M3,
+                                                  final.chain = final.chain.q0.95.M3, 
+                                                  betas.bay.kriging = bay.kriging.q0.95.M3,
+                                                  year1 = 2014, year2 = 2023, month = '6')
+quantile.q0.95.M3.2dec.jul <- quantile.pred.total(X.grid = X.grid, data.model = df.M3, 
+                                                  vars = vars.M3,
+                                                  final.chain = final.chain.q0.95.M3, 
+                                                  betas.bay.kriging = bay.kriging.q0.95.M3,
+                                                  year1 = 2014, year2 = 2023, month = '7')
+quantile.q0.95.M3.2dec.aug <- quantile.pred.total(X.grid = X.grid, data.model = df.M3, 
+                                                  vars = vars.M3,
+                                                  final.chain = final.chain.q0.95.M3, 
+                                                  betas.bay.kriging = bay.kriging.q0.95.M3,
+                                                  year1 = 2014, year2 = 2023, month = '8')
+
+

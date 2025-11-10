@@ -139,5 +139,14 @@ colnames(X_grid)[c(ncol(X_grid) - 1, ncol(X_grid))]<-c('elev','dist')
 X_grid <- X_grid %>%
   filter(l >= 152)
 
+# add t:month
+X_grid <- X_grid %>%
+  mutate(
+    month = month(Date),
+    `t:month6` = ifelse(month == 6, t, 0),
+    `t:month7` = ifelse(month == 7, t, 0),
+    `t:month8` = ifelse(month == 8, t, 0)
+  )
+
 qsave(X_grid,'X_grid.qs')
 

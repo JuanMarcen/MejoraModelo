@@ -189,8 +189,8 @@ models.q0.50.M3 <- mod.bay.parallel(n.mod = 3,
                                     coords = coords_km,
                                     init.list = init.list.M3,
                                     tau = 0.50,
-                                    n.samples = 100,
-                                    n.burnin = 100,
+                                    n.samples = 10,
+                                    n.burnin = 10,
                                     n.thin = 1,
                                     n.report = 1)
 
