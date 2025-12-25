@@ -201,3 +201,97 @@ ggplot(data = background) +
   coord_sf(xlim = st_coordinates(limits)[, 1], ylim = st_coordinates(limits)[, 2])
 
 saveRDS(stations$dist_cant, 'dist.cant.rds')
+
+
+# -----------------------------------
+# NEAREST COAST POINTS PER STATION to both coasts
+# -----------------------------------
+
+med_coast_union <- st_union(med_coastline_2062)
+cant_coast_union <- st_union(cant_coastline_2062)
+
+med_nearest_lines <- st_nearest_points(
+  stations,
+  med_coast_union
+)
+cant_nearest_lines <- st_nearest_points(
+  stations,
+  cant_coast_union
+)
+
+med_nearest_lines_sf <- st_sf(
+  id = seq_along(med_nearest_lines),
+  geometry = med_nearest_lines
+)
+cant_nearest_lines_sf <- st_sf(
+  id = seq_along(cant_nearest_lines),
+  geometry = cant_nearest_lines
+)
+
+med_nearest_points_coast <- st_cast(
+  med_nearest_lines_sf,
+  "POINT"
+) %>%
+  group_by(id) %>%
+  slice(2) %>%
+  ungroup()
+cant_nearest_points_coast <- st_cast(
+  cant_nearest_lines_sf,
+  "POINT"
+) %>%
+  group_by(id) %>%
+  slice(2) %>%
+  ungroup()
+
+ggplot(background) +
+  geom_sf(fill = "antiquewhite") +
+  #mediterranean coast
+  geom_sf(
+    data = med_nearest_lines_sf,
+    color = "#bdd7e7",
+    size = 0.5
+  ) +
+  geom_sf(
+    data = med_coastline_2062,
+    color = "#6baed6",
+    size = 1
+  ) +
+  geom_sf(
+    data = med_nearest_points_coast,
+    color = "#08519c",
+    size = 2,
+    shape = 15
+  ) +
+  #cantabrian coast
+  geom_sf(
+    data = cant_nearest_lines_sf,
+    color = "#bae4b3",
+    size = 0.5
+  ) +
+  geom_sf(
+    data = cant_coastline_2062,
+    color = "#74c476",
+    size = 1
+  ) +
+  geom_sf(
+    data = cant_nearest_points_coast,
+    color = "#006d2c",
+    size = 2,
+    shape = 17
+  ) +
+  geom_sf(
+    data = stations,
+    color = "black",
+    size = 1.8
+  ) +
+  
+  coord_sf(
+    xlim = st_coordinates(limits)[, 1],
+    ylim = st_coordinates(limits)[, 2]
+  ) +
+  theme(
+    panel.background = element_rect(fill = "aliceblue")
+  ) +
+  ggtitle("Nearest coastal point for each station")
+
+
