@@ -6,6 +6,9 @@ rm(list = setdiff(ls(), c('vars.M1', 'final.chain.q0.50.M1', 'df.M1',
                           'final.chain.q0.95.M3', 
                           'coords_km', 'stations', 'stations_dist'
                           )))
+
+load('spatial.interplation.RData')
+load('fullmodels.RData')
 # mantengo 
 # vars, final.chain, coords, stations_dist, stations, df,
 library(stringr)
@@ -521,4 +524,106 @@ quantile.q0.95.M3.2dec.aug <- quantile.pred.total(X.grid = X.grid, data.model = 
                                                   betas.bay.kriging = bay.kriging.q0.95.M3,
                                                   year1 = 2014, year2 = 2023, month = '8')
 
+
+#----DIFFERENCES AND SEE IF 0 IN CREDIBILITY INTERVAL----
+dif.q0.50.M1.jun <- quantile.q0.50.M1.2dec.jun - quantile.q0.50.M1.1dec.jun
+dif.q0.50.M1.jul <- quantile.q0.50.M1.2dec.jul - quantile.q0.50.M1.1dec.jul
+dif.q0.50.M1.aug <- quantile.q0.50.M1.2dec.aug - quantile.q0.50.M1.1dec.aug
+rm('quantile.q0.50.M1.2dec.jun', 'quantile.q0.50.M1.1dec.jun',
+   'quantile.q0.50.M1.2dec.jul', 'quantile.q0.50.M1.1dec.jul',
+   'quantile.q0.50.M1.2dec.aug', 'quantile.q0.50.M1.1dec.aug')
+gc()
+
+dif.q0.50.M2.jun <- quantile.q0.50.M2.2dec.jun - quantile.q0.50.M2.1dec.jun
+dif.q0.50.M2.jul <- quantile.q0.50.M2.2dec.jul - quantile.q0.50.M2.1dec.jul
+dif.q0.50.M2.aug <- quantile.q0.50.M2.2dec.aug - quantile.q0.50.M2.1dec.aug
+rm('quantile.q0.50.M2.2dec.jun', 'quantile.q0.50.M2.1dec.jun',
+   'quantile.q0.50.M2.2dec.jul', 'quantile.q0.50.M2.1dec.jul',
+   'quantile.q0.50.M2.2dec.aug', 'quantile.q0.50.M2.1dec.aug')
+gc()
+
+
+dif.q0.50.M3.jun <- quantile.q0.50.M3.2dec.jun - quantile.q0.50.M3.1dec.jun
+dif.q0.50.M3.jul <- quantile.q0.50.M3.2dec.jul - quantile.q0.50.M3.1dec.jul
+dif.q0.50.M3.aug <- quantile.q0.50.M3.2dec.aug - quantile.q0.50.M3.1dec.aug
+rm('quantile.q0.50.M3.2dec.jun', 'quantile.q0.50.M3.1dec.jun',
+   'quantile.q0.50.M3.2dec.jul', 'quantile.q0.50.M3.1dec.jul',
+   'quantile.q0.50.M3.2dec.aug', 'quantile.q0.50.M3.1dec.aug')
+gc()
+
+
+dif.q0.95.M1.jun <- quantile.q0.95.M1.2dec.jun - quantile.q0.95.M1.1dec.jun
+dif.q0.95.M1.jul <- quantile.q0.95.M1.2dec.jul - quantile.q0.95.M1.1dec.jul
+dif.q0.95.M1.aug <- quantile.q0.95.M1.2dec.aug - quantile.q0.95.M1.1dec.aug
+rm('quantile.q0.95.M1.2dec.jun', 'quantile.q0.95.M1.1dec.jun',
+   'quantile.q0.95.M1.2dec.jul', 'quantile.q0.95.M1.1dec.jul',
+   'quantile.q0.95.M1.2dec.aug', 'quantile.q0.95.M1.1dec.aug')
+gc()
+
+dif.q0.95.M2.jun <- quantile.q0.95.M2.2dec.jun - quantile.q0.95.M2.1dec.jun
+dif.q0.95.M2.jul <- quantile.q0.95.M2.2dec.jul - quantile.q0.95.M2.1dec.jul
+dif.q0.95.M2.aug <- quantile.q0.95.M2.2dec.aug - quantile.q0.95.M2.1dec.aug
+rm('quantile.q0.95.M2.2dec.jun', 'quantile.q0.95.M2.1dec.jun',
+   'quantile.q0.95.M2.2dec.jul', 'quantile.q0.95.M2.1dec.jul',
+   'quantile.q0.95.M2.2dec.aug', 'quantile.q0.95.M2.1dec.aug')
+gc()
+
+dif.q0.95.M3.jun <- quantile.q0.95.M3.2dec.jun - quantile.q0.95.M3.1dec.jun
+dif.q0.95.M3.jul <- quantile.q0.95.M3.2dec.jul - quantile.q0.95.M3.1dec.jul
+dif.q0.95.M3.aug <- quantile.q0.95.M3.2dec.aug - quantile.q0.95.M3.1dec.aug
+rm('quantile.q0.95.M3.2dec.jun', 'quantile.q0.95.M3.1dec.jun',
+   'quantile.q0.95.M3.2dec.jul', 'quantile.q0.95.M3.1dec.jul',
+   'quantile.q0.95.M3.2dec.aug', 'quantile.q0.95.M3.1dec.aug')
+gc()
+
+
+is.0.dif <- function(dif){
+  index <- rep(1:1500, times = nrow(dif) / 1500)
+  sum <- rowsum(dif, group = index)
+  mean <- sum /(nrow(dif) / 1500)
+  
+  IC <- apply(mean, 2, FUN = quantile, probs = c(0.025, 0.975))
+  is0 <- IC[1, ] <= 0 & IC[2, ] >= 0
+  
+  return(is0)
+}
+
+is.0.q0.50.M1.jun <- is.0.dif(dif.q0.50.M1.jun)
+is.0.q0.50.M1.jul <- is.0.dif(dif.q0.50.M1.jul)
+is.0.q0.50.M1.aug <- is.0.dif(dif.q0.50.M1.aug)
+
+is.0.q0.50.M2.jun <- is.0.dif(dif.q0.50.M2.jun)
+is.0.q0.50.M2.jul <- is.0.dif(dif.q0.50.M2.jul)
+is.0.q0.50.M2.aug <- is.0.dif(dif.q0.50.M2.aug)
+
+is.0.q0.50.M3.jun <- is.0.dif(dif.q0.50.M3.jun)
+is.0.q0.50.M3.jul <- is.0.dif(dif.q0.50.M3.jul)
+is.0.q0.50.M3.aug <- is.0.dif(dif.q0.50.M3.aug)
+
+is.0.q0.95.M1.jun <- is.0.dif(dif.q0.95.M1.jun)
+is.0.q0.95.M1.jul <- is.0.dif(dif.q0.95.M1.jul)
+is.0.q0.95.M1.aug <- is.0.dif(dif.q0.95.M1.aug)
+
+is.0.q0.95.M2.jun <- is.0.dif(dif.q0.95.M2.jun)
+is.0.q0.95.M2.jul <- is.0.dif(dif.q0.95.M2.jul)
+is.0.q0.95.M2.aug <- is.0.dif(dif.q0.95.M2.aug)
+
+is.0.q0.95.M3.jun <- is.0.dif(dif.q0.95.M3.jun)
+is.0.q0.95.M3.jul <- is.0.dif(dif.q0.95.M3.jul)
+is.0.q0.95.M3.aug <- is.0.dif(dif.q0.95.M3.aug)
+
+
+save(bay.kriging.q0.50.M1, quantile.q0.50.M1, 
+     is.0.q0.50.M1.jun, is.0.q0.50.M1.jul, is.0.q0.50.M1.aug,
+     bay.kriging.q0.50.M2, quantile.q0.50.M2, 
+     is.0.q0.50.M2.jun, is.0.q0.50.M2.jul, is.0.q0.50.M2.aug,
+     bay.kriging.q0.50.M3, quantile.q0.50.M3, 
+     is.0.q0.50.M3.jun, is.0.q0.50.M3.jul, is.0.q0.50.M3.aug,
+     bay.kriging.q0.95.M1, quantile.q0.95.M1, 
+     is.0.q0.95.M1.jun, is.0.q0.95.M1.jul, is.0.q0.95.M1.aug,
+     bay.kriging.q0.95.M2, quantile.q0.95.M2, 
+     is.0.q0.95.M2.jun, is.0.q0.95.M2.jul, is.0.q0.95.M2.aug,
+     bay.kriging.q0.95.M3, quantile.q0.95.M3, 
+     is.0.q0.95.M3.jun, is.0.q0.95.M3.jul, is.0.q0.95.M3.aug,
+     file = 'spatial.interpolation.RData')
 
