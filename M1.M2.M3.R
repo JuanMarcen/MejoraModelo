@@ -331,3 +331,294 @@ plot(1:92, unlist(rho.q0.50.M3$rho_dias), type = 'l',
 abline(h = 0.5, col = 'red')
 lines(1:92, unlist(rho.q0.50.M1$rho_dias), col = 'blue')
 lines(1:92, unlist(rho.q0.50.M2$rho_dias), col = 'forestgreen')
+
+#----Writing tables----
+orden <- readRDS('orden.rds')
+R1.df <- data.frame(
+  M1.q0.50 = round(R1.bay.q0.50.M1$R1_locales, 3),
+  M2.q0.50 = round(R1.bay.q0.50.M2$R1_locales, 3),
+  M3.q0.50 = round(R1.bay.q0.50.M3$R1_locales, 3),
+  M1.q0.95 = round(R1.bay.q0.95.M1$R1_locales, 3),
+  M2.q0.95 = round(R1.bay.q0.95.M2$R1_locales, 3),
+  M3.q0.95 = round(R1.bay.q0.95.M3$R1_locales, 3)
+)
+rownames(R1.df) <- stations$NAME2
+R1.df <- R1.df[orden, ]
+
+esc_tabla_negrita<-function(tabla,colq0.5,colq0.95,negrita=T){
+  
+  fila <- rownames(tabla)
+  columnas <- ncol(tabla)
+  
+  media_cant<-round(apply(tabla[1:6,],FUN = mean,MARGIN = 2),3)
+  media_med<-round(apply(tabla[7:18,],FUN = mean,MARGIN = 2),3)
+  media_centro<-round(apply(tabla[19:40,],FUN = mean,MARGIN = 2),3)
+  media_todo<-round(apply(tabla,FUN = mean,MARGIN = 2),3)
+  
+  for (i in 1:dim(tabla)[1]){
+    
+    maxq0.5<-max(tabla[i,colq0.5])
+    maxq0.95<-max(tabla[i,colq0.95])
+    
+    cat(fila[i],'& ')
+    
+    
+    for (j in 1:columnas){
+      
+      x <- tabla[i,j]
+      
+      if (j %in% colq0.5 && x == maxq0.5 && negrita==T){
+        cat('$\\mathbf{',format(x,nsmall=3),'}$')
+      }else if(j %in% colq0.95 && x == maxq0.95 && negrita==T){
+        cat('$\\mathbf{',format(x,nsmall=3),'}$')
+      }else{
+        cat('$',format(x,nsmall=3),'$')
+      }
+      
+      
+      
+      #separo valor y salto linea
+      if (j < columnas){
+        cat(' & ')
+      }else{
+        cat(' \\\\\n')
+      }
+      
+    }
+    
+    #separacion zonas
+    if(i %in% c(6,18)){
+      cat('[2pt]','\\hline', '\\\\ [-10pt]')
+    }
+    if(i==40){
+      cat('[2pt]','\\hline \\\\ [-10pt]')
+    }
+    
+    
+    if (i==6){
+      cat(' Media & ')
+      for (j in 1:columnas){
+        m<-media_cant[j]
+        cat('$',format(m,nsmall=3),'$')
+        if (j < columnas){
+          cat(' & ')
+        }else{
+          cat(' \\\\ [2pt] \\hline \\\\[-10pt] \n')
+        }
+      }
+    }
+    
+    if (i==18){
+      cat(' Media & ')
+      for (j in 1:columnas){
+        m<-media_med[j]
+        cat('$',format(m,nsmall=3),'$')
+        if (j < columnas){
+          cat(' & ')
+        }else{
+          cat(' \\\\ [2pt] \\hline \\\\[-10pt] \n')
+        }
+      }
+    }
+    
+    if (i==40){
+      cat(' Media & ')
+      for (j in 1:columnas){
+        m<-media_centro[j]
+        cat('$',format(m,nsmall=3),'$')
+        if (j < columnas){
+          cat(' & ')
+        }else{
+          cat(' \\\\ [2pt] \\hline \\\\[-10pt] \n')
+        }
+      }
+    }
+  }
+  
+  cat(' Media total & ')
+  for (j in 1:columnas){
+    m<-media_todo[j]
+    cat('$',format(m,nsmall=3),'$')
+    if (j<columnas){
+      cat(' & ')
+    }else{
+      cat(' \\\\ [2pt] \\hline')
+    }
+  }
+  
+}
+
+esc_tabla_negrita(R1.df, colq0.5 = c(1, 2, 3), colq0.95 = c(4, 5, 6), negrita = T)
+
+#----plots rho----
+pdf('rho_3est.pdf', width = 12, height = 8)
+rho.q0.95.M1.madrid <- rho.q0.95.M1$rho_dias_est$`Madrid (Barajas)`
+rho.q0.95.M2.madrid <- rho.q0.95.M2$rho_dias_est$`Madrid (Barajas)`
+rho.q0.95.M3.madrid <- rho.q0.95.M3$rho_dias_est$`Madrid (Barajas)`
+
+par(mfrow = c(2,3))
+
+plot(1:92, rho.q0.95.M1.madrid$rho_bay_dia, type = 'l',
+     ylim = c(0.75,1), col = 'forestgreen',
+     ylab = expression(rho[l](0.95 * '; ' * s)),
+     xlab = 'l',
+     main = 'Madrid (Barajas)')
+lines(1:92, rho.q0.95.M2.madrid$rho_bay_dia, col = 'blue')
+lines(1:92, rho.q0.95.M3.madrid$rho_bay_dia, lw = 2)
+abline(h = 0.95, col = 'red')
+legend('bottom', legend = c('M1', 'M2', 'M3'),
+       ncol = 3,
+       col = c('forestgreen', 'blue', 'black'), lty = 1, lwd = c(1,1,2))
+
+rho.q0.95.M1.madrid <- rho.q0.95.M1$rho_dias_est$Gijón
+rho.q0.95.M2.madrid <- rho.q0.95.M2$rho_dias_est$Gijón
+rho.q0.95.M3.madrid <- rho.q0.95.M3$rho_dias_est$Gijón
+
+plot(1:92, rho.q0.95.M1.madrid$rho_bay_dia, type = 'l',
+     ylim = c(0.75,1), col = 'forestgreen',
+     ylab = expression(rho[l](0.95 * '; ' * s)),
+     xlab = 'l',
+     main = 'Gijón')
+lines(1:92, rho.q0.95.M2.madrid$rho_bay_dia, col = 'blue')
+lines(1:92, rho.q0.95.M3.madrid$rho_bay_dia, lw = 2)
+abline(h = 0.95, col = 'red')
+legend('bottom', legend = c('M1', 'M2', 'M3'),
+       ncol = 3,
+       col = c('forestgreen', 'blue', 'black'), lty = 1, lwd = c(1,1,2))
+
+rho.q0.95.M1.madrid <- rho.q0.95.M1$rho_dias_est$`Barcelona (Aeropuerto)`
+rho.q0.95.M2.madrid <- rho.q0.95.M2$rho_dias_est$`Barcelona (Aeropuerto)`
+rho.q0.95.M3.madrid <- rho.q0.95.M3$rho_dias_est$`Barcelona (Aeropuerto)`
+
+plot(1:92, rho.q0.95.M1.madrid$rho_bay_dia, type = 'l',
+     ylim = c(0.75,1), col = 'forestgreen',
+     ylab = expression(rho[l](0.95 * '; ' * s)),
+     xlab = 'l',
+     main = 'Barcelona (Airport)')
+lines(1:92, rho.q0.95.M2.madrid$rho_bay_dia, col = 'blue')
+lines(1:92, rho.q0.95.M3.madrid$rho_bay_dia, lw = 2)
+abline(h = 0.95, col = 'red')
+legend('bottom', legend = c('M1', 'M2', 'M3'),
+       ncol = 3,
+       col = c('forestgreen', 'blue', 'black'), lty = 1, lwd = c(1,1,2))
+
+rho.q0.95.M1.madrid <- rho.q0.95.M1$rho_años_est$`Madrid (Barajas)`
+rho.q0.95.M2.madrid <- rho.q0.95.M2$rho_años_est$`Madrid (Barajas)`
+rho.q0.95.M3.madrid <- rho.q0.95.M3$rho_años_est$`Madrid (Barajas)`
+
+plot(1:64, rho.q0.95.M1.madrid$rho_bay_year, type = 'l',
+     ylim = c(0.75,1), col = 'forestgreen',
+     ylab = expression(rho[t](0.95 * '; ' * s)),
+     xlab = 't')
+lines(1:64, rho.q0.95.M2.madrid$rho_bay_year, col = 'blue')
+lines(1:64, rho.q0.95.M3.madrid$rho_bay_year, lw = 2)
+abline(h = 0.95, col = 'red')
+legend('bottom', legend = c('M1', 'M2', 'M3'),
+       ncol = 3,
+       col = c('forestgreen', 'blue', 'black'), lty = 1, lwd = c(1,1,2))
+
+rho.q0.95.M1.madrid <- rho.q0.95.M1$rho_años_est$Gijón
+rho.q0.95.M2.madrid <- rho.q0.95.M2$rho_años_est$Gijón
+rho.q0.95.M3.madrid <- rho.q0.95.M3$rho_años_est$Gijón
+
+plot(1:64, rho.q0.95.M1.madrid$rho_bay_year, type = 'l',
+     ylim = c(0.75,1), col = 'forestgreen',
+     ylab = expression(rho[t](0.95 * '; ' * s)),
+     xlab = 't')
+lines(1:64, rho.q0.95.M2.madrid$rho_bay_year, col = 'blue')
+lines(1:64, rho.q0.95.M3.madrid$rho_bay_year, lw = 2)
+abline(h = 0.95, col = 'red')
+legend('bottom', legend = c('M1', 'M2', 'M3'),
+       ncol = 3,
+       col = c('forestgreen', 'blue', 'black'), lty = 1, lwd = c(1,1,2))
+
+rho.q0.95.M1.madrid <- rho.q0.95.M1$rho_años_est$`Barcelona (Aeropuerto)`
+rho.q0.95.M2.madrid <- rho.q0.95.M2$rho_años_est$`Barcelona (Aeropuerto)`
+rho.q0.95.M3.madrid <- rho.q0.95.M3$rho_años_est$`Barcelona (Aeropuerto)`
+
+plot(1:64, rho.q0.95.M1.madrid$rho_bay_year, type = 'l',
+     ylim = c(0.75,1), col = 'forestgreen',
+     ylab = expression(rho[t](0.95 * '; ' * s)),
+     xlab = 't')
+lines(1:64, rho.q0.95.M2.madrid$rho_bay_year, col = 'blue')
+lines(1:64, rho.q0.95.M3.madrid$rho_bay_year, lw = 2)
+abline(h = 0.95, col = 'red')
+legend('bottom', legend = c('M1', 'M2', 'M3'),
+       ncol = 3,
+       col = c('forestgreen', 'blue', 'black'), lty = 1, lwd = c(1,1,2))
+dev.off()
+
+pdf('rho_global_q0.50.pdf', width = 12, height = 8*2/3)
+a <- rho.q0.50.M1$rho_dias
+b <- rho.q0.50.M2$rho_dias
+c <- rho.q0.50.M3$rho_dias
+
+par(mfrow = c(1,2))
+
+plot(1:92, a$rho_bay_dia, type = 'l',
+     ylim = c(0.25,0.75), col = 'forestgreen',
+     ylab = expression(rho[l](0.50)),
+     xlab = 'l')
+lines(1:92, b$rho_bay_dia, col = 'blue')
+lines(1:92, c$rho_bay_dia, lw = 2)
+abline(h = 0.50, col = 'red')
+legend('bottom', legend = c('M1', 'M2', 'M3'),
+       ncol = 3,
+       col = c('forestgreen', 'blue', 'black'), lty = 1, lwd = c(1,1,2),
+       bg = 'white')
+
+a <- rho.q0.50.M1$rho_años
+b <- rho.q0.50.M2$rho_años
+c <- rho.q0.50.M3$rho_años
+
+plot(1:64, a$rho_bay_year, type = 'l',
+     ylim = c(0.25,0.75), col = 'forestgreen',
+     ylab = expression(rho[t](0.50)),
+     xlab = 't')
+lines(1:64, b$rho_bay_year, col = 'blue')
+lines(1:64, c$rho_bay_year, lw = 2)
+abline(h = 0.50, col = 'red')
+legend('bottom', legend = c('M1', 'M2', 'M3'),
+       ncol = 3,
+       col = c('forestgreen', 'blue', 'black'), lty = 1, lwd = c(1,1,2),
+       bg = 'white')
+
+dev.off()
+#----CI betas----
+final.chain <- final.chain.q0.50.M1
+sta <- c('Madrid (Barajas)', 'Gijón', 'Barcelona (Aeropuerto)')
+ind.s <- which(stations$NAME2 %in% sta)
+
+df <- data.frame(matrix(NA,nrow = nrow(final.chain)))
+#M1
+for (i in ind.s){
+  for (j in 1:length(vars.M1)){
+    var <- vars.M1[j]
+    df[[paste0(var, '.M1.', stations$NAME2[i])]] <- final.chain[[var]] + 
+      final.chain[[paste0('beta',j,'(s',i,')')]]
+  }
+}
+
+#M2
+final.chain <- final.chain.q0.50.M2
+for (i in ind.s){
+  for (j in 1:length(vars.M2)){
+    var <- vars.M2[j]
+    df[[paste0(var, '.M2.', stations$NAME2[i])]] <- final.chain[[var]] + 
+      final.chain[[paste0('beta',j,'(s',i,')')]]
+  }
+}
+
+#M3
+final.chain <- final.chain.q0.50.M3
+for (i in ind.s){
+  for (j in 1:length(vars.M3)){
+    var <- vars.M3[j]
+    df[[paste0(var, '.M3.', stations$NAME2[i])]] <- final.chain[[var]] + 
+      final.chain[[paste0('beta',j,'(s',i,')')]]
+  }
+}
+
+df <- df[, -1]
+
+CI.coef <- apply(df, 2, quantile, probs = c(0.025, 0.0975))
