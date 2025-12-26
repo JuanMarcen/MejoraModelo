@@ -106,7 +106,7 @@ european_union <- c("Algeria", "Andorra", "France", "Gibraltar", "Morocco",
 european_union_map <- world_map %>% filter(name %in% european_union)
 background <- st_transform(european_union_map, 2062)
 
-ggplot(data = background) +
+g1 <- ggplot(data = background) +
   geom_sf(fill = "antiquewhite") +
   xlab("Longitude") + 
   ylab("Latitude") + 
@@ -130,6 +130,9 @@ ggplot(data = background) +
   geom_sf(data = stations, inherit.aes = FALSE, pch = 19, size = 1.5) +
   #limits
   coord_sf(xlim = st_coordinates(limits)[, 1], ylim = st_coordinates(limits)[, 2])
+
+ggsave('graphs/maps/dist.med.coast.pdf',
+       g1, height = 8, width = 8)
 
 saveRDS(stations$dist_med, 'dist.med.rds')
 
@@ -175,7 +178,7 @@ stations$dist_cant <- round(min_dist_st_m / 1000, 3)
 # ---------------------------
 # PLOT 
 # ---------------------------
-ggplot(data = background) +
+g2 <- ggplot(data = background) +
   geom_sf(fill = "antiquewhite") +
   xlab("Longitude") + 
   ylab("Latitude") + 
@@ -199,6 +202,9 @@ ggplot(data = background) +
   geom_sf(data = stations, inherit.aes = FALSE, pch = 19, size = 1.5) +
   #limits
   coord_sf(xlim = st_coordinates(limits)[, 1], ylim = st_coordinates(limits)[, 2])
+
+ggsave('graphs/maps/dist.cant.coast.pdf',
+       g2, height = 8, width = 8)
 
 saveRDS(stations$dist_cant, 'dist.cant.rds')
 
@@ -243,7 +249,7 @@ cant_nearest_points_coast <- st_cast(
   slice(2) %>%
   ungroup()
 
-ggplot(background) +
+g3 <- ggplot(background) +
   geom_sf(fill = "antiquewhite") +
   #mediterranean coast
   geom_sf(
@@ -294,4 +300,6 @@ ggplot(background) +
   ) +
   ggtitle("Nearest coastal point for each station")
 
+ggsave('graphs/maps/points.med.cant.coast.pdf',
+       g3, height = 8, width = 8)
 
