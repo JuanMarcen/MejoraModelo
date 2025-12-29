@@ -60,53 +60,26 @@ arma::vec RandomMultiNormalC(
 arma::vec rig(
     const int N,
     const arma::vec& mu,
-    const double lambda,
-    const bool parallel,
-    int nThreads) {
+    const double lambda) {
   
   arma::vec X(N);
   arma::vec V = arma::square(arma::randn(N)); // chi^2(1)
   arma::vec U = arma::randu(N);               // uniform
-  
-  if (!parallel) {
     
-    arma::vec C = mu / (2.0 * lambda);
-    double mu_i, X_i, W, P1;
-    
-    for (int i = 0; i < N; ++i) {
-      mu_i = mu(i);
-      W = mu_i * V(i);
-      X_i = mu_i + C(i) * (W - std::sqrt(W * (4.0 * lambda + W)));
-      P1 = mu_i / (mu_i + X_i);
-      if (U(i) > P1)
-        X_i = mu_i * mu_i / X_i;
-      X(i) = X_i;
-    }
-    
-    return X;
-  }
+  arma::vec C = mu / (2.0 * lambda);
+  double mu_i, X_i, W, P1;
   
-#ifdef _OPENMP
-  if (nThreads <= 0)
-    nThreads = omp_get_max_threads();
-  omp_set_num_threads(nThreads);
-#endif
-  
-#ifdef _OPENMP
-#pragma omp parallel for
-#endif
   for (int i = 0; i < N; ++i) {
-    double mu_i = mu(i);
-    double W = mu_i * V(i);
-    double C = mu_i / (2.0 * lambda);
-    double X_i = mu_i + C * (W - std::sqrt(W * (4.0 * lambda + W)));
-    double P1 = mu_i / (mu_i + X_i);
+    mu_i = mu(i);
+    W = mu_i * V(i);
+    X_i = mu_i + C(i) * (W - std::sqrt(W * (4.0 * lambda + W)));
+    P1 = mu_i / (mu_i + X_i);
     if (U(i) > P1)
       X_i = mu_i * mu_i / X_i;
     X(i) = X_i;
   }
-  
-  return X;
+    
+    return X;
 }
 
 

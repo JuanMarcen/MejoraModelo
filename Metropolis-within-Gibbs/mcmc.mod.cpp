@@ -37,8 +37,8 @@ Rcpp::List spQuantileRcpp(
     //const bool parallel,  // parallel
     //const int nThreads
     // ADD NEW DISTANCES
-    const arma::vec& dist.coast, // nx1
-    const arma::mat& dist.coast.points //nxn
+    const arma::vec& dist_coast, // nx1
+    const arma::mat& dist_coast_points //nxn
 ) {
   
   // missing index (SAME)
@@ -100,20 +100,20 @@ Rcpp::List spQuantileRcpp(
   //hp.row(0).zeros(); //temporal
   
   // repeat for all hiperparameters??
-  // aux decay
-  arma::vec accept(r, arma::fill::zeros);
+  // aux decay and rest (matrix 4 x r)
+  arma::mat accept(4, r, arma::fill::zeros);
   int total = 0;
-  arma::vec ratio(r);
-  arma::vec sd(r, arma::fill::ones);
-  arma::vec lsd(r, arma::fill::zeros); // log(sd);
+  arma::mat ratio(4, r);
+  arma::mat sd(4, r, arma::fill::ones);
+  arma::mat lsd(4, r, arma::fill::zeros); // log(sd);
   
   arma::cube R(n, n, r);
   arma::vec Rlogdet(r);
   std::vector<arma::mat> xR(r);
   
   // new definition of the covariance matrices
-  // arma::vec expdc = arma::exp(- hp(2, m) * dist.coast); //nx1
-  // arma::mat Mcoast = arma::exp(-hp(3, m) * dist.coast.points); //nxn
+  // arma::vec expdc = arma::exp(- hp(2, m) * dist_coast); //nx1
+  // arma::mat Mcoast = arma::exp(-hp(3, m) * dist_coast_points); //nxn
   // // column multiplication
   // Mcoast.each_row() %= expdc.t();
   // // row multiplication
@@ -127,14 +127,24 @@ Rcpp::List spQuantileRcpp(
   // USE OF THE FUNCTION I CREATED
   for (int m = 0; m < r; ++m){
     R.slice(m) = inv_covariance_matrix(hp(0, m), hp(1, m), hp(2, m), hp(3, m), 
-            dist, dist.coast, dist.coast.points);
+            dist, dist_coast, dist_coast_points);
     Rlogdet(m) = arma::log_det_sympd(R.slice(m));
   }
   
   // for adaptative (ADD REST OF HP)
+  double precision_aux;
+  double lprecision_aux = 0;
+  arma::vec lprecision = log(hp.row(0).t());
   double decay_aux;
   double ldecay_aux = 0;
-  arma::vec ldecay = log(hp.row(2).t());
+  arma::vec ldecay = log(hp.row(1).t());
+  double varsigma_aux;
+  double lvarsigma_aux = 0;
+  arma::vec lvarsigma = log(hp.row(3).t());
+  double varphi_aux;
+  double lvarphi_aux = 0;
+  arma::vec lvarphi = log(hp.row(4).t());
+  // the following will be overwritten
   arma::mat R_aux(n, n);
   double Rlogdet_aux;
   
@@ -157,7 +167,7 @@ Rcpp::List spQuantileRcpp(
   //double C = 0.5 * n + ga;
   //double D;
   
-  // save
+  // save (LOOK THE INTERCEPT?)
   int save_idx = 0;
   int nCols1 = p + 1;
   int nCols2 = r * (n + 4) + arma::accu(p_alpha);
@@ -173,24 +183,26 @@ Rcpp::List spQuantileRcpp(
     reportProgress(iter, nBurnin, nSims, nReport, 
                    (iter > 0 ? iter / nThin : 0), start_time);
     
-    // xi
+    // xi (SAME)
     e += c1 * xi;
     xi = 1.0 / rig(N, c4 / arma::abs(e), prec * c3, parallel, nThreads);
     c2dxi = c2 / xi;
     e -= c1 * xi;
     
     // beta (COMMENT BASED ON X, WE DON'T WANT FIXED EFFECTS)
-    e += Xb;
-    Qp = P;
-    bp = PM;
-    for (int i = 0; i < N; ++i) {
-      Xaux = prec * c2dxi(i) * X.row(i).t();
-      Qp += Xaux * X.row(i);
-      bp += Xaux * e(i);
+    if (p > 0){
+      e += Xb;
+      Qp = P;
+      bp = PM;
+      for (int i = 0; i < N; ++i) {
+        Xaux = prec * c2dxi(i) * X.row(i).t();
+        Qp += Xaux * X.row(i);
+        bp += Xaux * e(i);
+      }
+      beta = RandomMultiNormalC(Qp, bp);
+      Xb = X * beta;
+      e -= Xb;
     }
-    beta = RandomMultiNormalC(Qp, bp);
-    Xb = X * beta;
-    e -= Xb;
     
     // alpha m = 1,...,r
     if (r > 0) {
@@ -198,7 +210,7 @@ Rcpp::List spQuantileRcpp(
         alpha_m = alpha.col(m);
         V_m = V.col(m);
         e += V_m % alpha_m.elem(s);
-        Qn = hp(1, m) * R.slice(m);
+        Qn = R.slice(m);
         bn = Qn * Xb_alpha[m];
         for (int i = 0; i < n; ++i) {
           V_block = V_m.elem(s_group[i]);
@@ -213,54 +225,121 @@ Rcpp::List spQuantileRcpp(
         alpha.col(m) = alpha_m;
         e -= V_m % alpha_m.elem(s);
         
-        // mu 
-        xR[m] = hp(1, m) * X_alpha[m].t() * R.slice(m);
+        // mu (gammas_k)
+        xR[m] = X_alpha[m].t() * R.slice(m);
         Qp_alpha[m] = xR[m] * X_alpha[m] + P_beta_alpha[m];
         bp_alpha[m] = xR[m] * alpha_m + PM_beta_alpha[m];
         beta_alpha[m] = RandomMultiNormalC(Qp_alpha[m], bp_alpha[m]);
-        Xb_alpha[m] = X_alpha[m] * beta_alpha[m];
+        Xb_alpha[m] = X_alpha[m] * beta_alpha[m]; //zeta_k * gamma_k (mean GP)
         
         // decay
-        ldecay_aux  = R::rnorm(ldecay(m), sd(m));
+        ldecay_aux  = R::rnorm(ldecay(m), sd(1, m));
         decay_aux   = exp(ldecay_aux);
-        R_aux       = arma::inv_sympd(exp(- decay_aux * dist));
+        R_aux       = inv_covariance_matrix(hp(0, m), decay_aux, hp(2, m), hp(3, m),
+                                            dist, dist_coast, dist_coast_points);
         Rlogdet_aux = arma::log_det_sympd(R_aux);
         vn       = alpha_m - Xb_alpha[m];
         vtRv_aux = arma::as_scalar(vn.t() * R_aux * vn);
         vtRv     = arma::as_scalar(vn.t() * R.slice(m) * vn);
         ALPHA = 
-          (Rlogdet_aux - hp(1, m) * vtRv_aux) / 2 + 
+          (Rlogdet_aux - vtRv_aux) / 2 + 
           da * ldecay_aux - db * decay_aux - 
-          ((Rlogdet(m) - hp(1, m) * vtRv) / 2 +
-          da * ldecay(m) - db * hp(2, m));
+          ((Rlogdet(m) - vtRv) / 2 +
+          da * ldecay(m) - db * hp(1, m));
         if (log(R::runif(0, 1)) < ALPHA) {
-          ++accept(m);
-          hp(2, m) = decay_aux;
+          ++accept(1, m);
+          hp(1, m) = decay_aux;
           ldecay(m) = ldecay_aux;
           R.slice(m) = R_aux;
           Rlogdet(m) = Rlogdet_aux;
           vtRv = vtRv_aux;
         }
         
-        // prec
-        D = 0.5 * vtRv + gb;
-        hp(1, m) = R::rgamma(C, 1.0 / D);
+        // precision (change arguments of priors!!)
+        lprecision_aux  = R::rnorm(lprecision(m), sd(0, m));
+        precision_aux   = exp(lprecision_aux);
+        R_aux       = inv_covariance_matrix(precision_aux, hp(1, m), hp(2, m), hp(3, m),
+                                            dist, dist_coast, dist_coast_points);
+        Rlogdet_aux = arma::log_det_sympd(R_aux);
+        vn       = alpha_m - Xb_alpha[m];
+        vtRv_aux = arma::as_scalar(vn.t() * R_aux * vn);
+        //vtRv     = arma::as_scalar(vn.t() * R.slice(m) * vn); //we use the previous
+        ALPHA = 
+          (Rlogdet_aux - vtRv_aux) / 2 + 
+          da * lprecision_aux - db * precision_aux - 
+          ((Rlogdet(m) - vtRv) / 2 +
+          da * lprecision(m) - db * hp(0, m));
+        if (log(R::runif(0, 1)) < ALPHA) {
+          ++accept(0, m);
+          hp(0, m) = precision_aux;
+          lprecision(m) = lprecision_aux;
+          R.slice(m) = R_aux;
+          Rlogdet(m) = Rlogdet_aux;
+          vtRv = vtRv_aux;
+        }
+        
+        // varsigma
+        lvarsigma_aux  = R::rnorm(lvarsigma(m), sd(2, m));
+        varsigma_aux   = exp(lvarsigma_aux);
+        R_aux       = inv_covariance_matrix(hp(0, m), hp(1, m), varsigma_aux, hp(3, m),
+                                            dist, dist_coast, dist_coast_points);
+        Rlogdet_aux = arma::log_det_sympd(R_aux);
+        vn       = alpha_m - Xb_alpha[m];
+        vtRv_aux = arma::as_scalar(vn.t() * R_aux * vn);
+        ALPHA = 
+          (Rlogdet_aux - vtRv_aux) / 2 + 
+          da * lvarsigma_aux - db * varsigma_aux - 
+          ((Rlogdet(m) - vtRv) / 2 +
+          da * lvarsigma(m) - db * hp(2, m));
+        if (log(R::runif(0, 1)) < ALPHA) {
+          ++accept(2, m);
+          hp(2, m) = varsigma_aux;
+          lvarsigma(m) = lvarsigma_aux;
+          R.slice(m) = R_aux;
+          Rlogdet(m) = Rlogdet_aux;
+          vtRv = vtRv_aux;
+        }
+        
+        // varphi
+        lvarphi_aux  = R::rnorm(lvarphi(m), sd(3, m));
+        varphi_aux   = exp(lvarphi_aux);
+        R_aux       = inv_covariance_matrix(hp(0, m), hp(1, m), hp(2, m), varphi_aux,
+                                            dist, dist_coast, dist_coast_points);
+        Rlogdet_aux = arma::log_det_sympd(R_aux);
+        vn       = alpha_m - Xb_alpha[m];
+        vtRv_aux = arma::as_scalar(vn.t() * R_aux * vn);
+        ALPHA = 
+          (Rlogdet_aux - vtRv_aux) / 2 + 
+          da * lvarphi_aux - db * varphi_aux - 
+          ((Rlogdet(m) - vtRv) / 2 +
+          da * lvarphi(m) - db * hp(3, m));
+        if (log(R::runif(0, 1)) < ALPHA) {
+          ++accept(3, m);
+          hp(3, m) = varphi_aux;
+          lvarphi(m) = lvarphi_aux;
+          R.slice(m) = R_aux;
+          Rlogdet(m) = Rlogdet_aux;
+          vtRv = vtRv_aux;
+        }
       }
     }
     
-    // tune sd of the proposal for decay
+    // tune sd of the proposal for decay (and rest of hyperparameters)
     if (iter == 0) {
       accept.zeros();
       total = 0;
     } else if ((iter < 1) && (++total % 25 == 0)) {
       ratio = accept / total;
       for (int m = 0; m < r; ++m) {
-        if (ratio(m) > 0.33) {
-          lsd(m) += 1 / sqrt(total / 25);
-        } else {
-          lsd(m) -= 1 / sqrt(total / 25);
+        // tune for each parameter
+        for (int j = 0; j < 4; ++j){
+          if (ratio(j, m) > 0.33) {
+            lsd(j, m) += 1 / sqrt(total / 25);
+          } else {
+            lsd(j, m) -= 1 / sqrt(total / 25);
+          }
+          sd(j, m) = exp(lsd(j, m));
         }
-        sd(m) = exp(lsd(m));
       }
     }
     
