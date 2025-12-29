@@ -1,0 +1,322 @@
+#include "utils.mod.h"
+
+Rcpp::List spQuantileRcpp(
+    const double tau,      // quantile level
+    arma::vec Y,           // data
+    const arma::mat& X,   //design matrix Nxp
+    const arma::mat& V,   // spatial effects Nxr
+    const std::vector<arma::mat>& X_alpha, //list of matrix Nxp_m
+    const arma::mat& dist, //distances between stations nxn 
+    const arma::vec& M,    // prior values
+    const arma::mat& P,
+    const std::vector<arma::vec>& M_beta_alpha,
+    const std::vector<arma::mat>& P_beta_alpha,
+    // ADD PRIORS FOR REST?
+    const double da,    
+    const double db,    
+    const double ga,
+    const double gb,
+    const double na,    
+    const double nb,    
+    arma::vec beta,        // initial px1
+    arma::mat alpha,    // nxr
+    double prec, //1/sigma
+    arma::mat hp, //hiperparameters (1/sigma^2, phi, varsigma, varphi)
+    // (4 x r)
+    std::vector<arma::vec>& beta_alpha,
+    const int N,          // constants
+    const int n,        
+    const int p,
+    const int r,
+    const arma::vec& p_alpha, //p_m
+    const arma::uvec& s,  // index vector
+    const int nSims,      // MCMC numbers
+    const int nThin,
+    const int nBurnin,
+    const int nReport,
+    //const bool parallel,  // parallel
+    //const int nThreads
+    // ADD NEW DISTANCES
+    const arma::vec& dist.coast, // nx1
+    const arma::mat& dist.coast.points //nxn
+) {
+  
+  // missing index (SAME)
+  int nKeep = nSims / nThin;
+  const arma::uvec missing_idx = arma::find_nonfinite(Y);
+  const arma::uword missing_n = missing_idx.n_elem;
+  arma::vec mm(missing_n), ss(missing_n);
+  arma::mat keep_Y(nKeep, missing_n);
+  const double mean_Y = arma::mean(Y.elem(arma::find_finite(Y)));
+  Y.elem(missing_idx).fill(mean_Y);
+  
+  // constants (SAME)
+  const double c1 = (1 - 2 * tau) / (tau * (1 - tau));
+  const double c2 = tau * (1 - tau) / 2;
+  const double c3 = 2 + c1 * c1 * c2;
+  const double c4 = sqrt(c3 / c2);
+  const arma::vec PM = P * M;
+  std::vector<arma::vec> PM_beta_alpha(r);
+  for (int m = 0; m < r; ++m) {
+    PM_beta_alpha[m] = P_beta_alpha[m] * M_beta_alpha[m];
+  }
+  
+  // aux
+  arma::vec c2dxi(N);
+  arma::vec Xaux(p);
+  // latent
+  arma::vec xi(N, arma::fill::ones);
+  
+  // residual
+  arma::vec Xb = X * beta;
+  arma::vec e  = Y - Xb - c1 * xi;
+  arma::vec alpha_m(n);
+  arma::vec V_m(N);
+  arma::uvec s_missing(missing_n);
+  for (int m = 0; m < r; ++m) {
+    alpha_m = alpha.col(m);
+    V_m = V.col(m);
+    e -= V_m % alpha_m.elem(s);
+  }
+  
+  std::vector<arma::vec> Xb_alpha(r);
+  for (int m = 0; m < r; ++m) {
+    Xb_alpha[m] = X_alpha[m] * beta_alpha[m];
+  }
+  
+  // aux GP
+  //arma::vec onen(n, arma::fill::ones);
+  int Ndn = N / n;
+  
+  std::vector<arma::uvec> s_group(n);
+  for (int i = 0; i < n; ++i) {
+    s_group[i] = arma::regspace<arma::uvec>(i*Ndn, i*Ndn + Ndn - 1);
+  }
+  
+  arma::vec V_block(Ndn), e_block(Ndn);
+  arma::vec c2dxi_block(Ndn), V_c2dxi_block(Ndn);
+  
+  // my mean is no 0, i dont estimate the mean of the GP
+  //hp.row(0).zeros(); //temporal
+  
+  // repeat for all hiperparameters??
+  // aux decay
+  arma::vec accept(r, arma::fill::zeros);
+  int total = 0;
+  arma::vec ratio(r);
+  arma::vec sd(r, arma::fill::ones);
+  arma::vec lsd(r, arma::fill::zeros); // log(sd);
+  
+  arma::cube R(n, n, r);
+  arma::vec Rlogdet(r);
+  std::vector<arma::mat> xR(r);
+  
+  // new definition of the covariance matrices
+  // arma::vec expdc = arma::exp(- hp(2, m) * dist.coast); //nx1
+  // arma::mat Mcoast = arma::exp(-hp(3, m) * dist.coast.points); //nxn
+  // // column multiplication
+  // Mcoast.each_row() %= expdc.t();
+  // // row multiplication
+  // Mcoast.each_col() %= expdc;
+  
+  // for (int m = 0; m < r; ++m) {
+  //   R.slice(m) = arma::inv_sympd(exp(- hp(1, m) * dist) + Mcoast);
+  //   Rlogdet(m) = arma::log_det_sympd(R.slice(m));
+  // }
+  
+  // USE OF THE FUNCTION I CREATED
+  for (int m = 0; m < r; ++m){
+    R.slice(m) = inv_covariance_matrix(hp(0, m), hp(1, m), hp(2, m), hp(3, m), 
+            dist, dist.coast, dist.coast.points);
+    Rlogdet(m) = arma::log_det_sympd(R.slice(m));
+  }
+  
+  // for adaptative (ADD REST OF HP)
+  double decay_aux;
+  double ldecay_aux = 0;
+  arma::vec ldecay = log(hp.row(2).t());
+  arma::mat R_aux(n, n);
+  double Rlogdet_aux;
+  
+  arma::vec vn(n);
+  double vtRv, vtRv_aux;
+  double ALPHA = 0;
+  
+  // full posterior Precision rhs of beta
+  arma::mat Qp(p, p);
+  arma::vec bp(p);
+  // full posterior Precision rhs of alpha
+  arma::mat Qn(n, n);
+  arma::vec bn(n);
+  // full posterior Precision rhs of beta_alpha
+  std::vector<arma::mat> Qp_alpha(r);
+  std::vector<arma::vec> bp_alpha(r);
+  // full posterior parameters A B of prec, and C D of prec (alpha)
+  double A = 1.5 * N + ga;
+  double B;
+  //double C = 0.5 * n + ga;
+  //double D;
+  
+  // save
+  int save_idx = 0;
+  int nCols1 = p + 1;
+  int nCols2 = r * (n + 4) + arma::accu(p_alpha);
+  arma::mat keep(nKeep, nCols1);
+  arma::mat keep_alpha(nKeep, nCols2);
+  
+  // time
+  auto start_time = std::chrono::steady_clock::now();
+  
+  // iterations
+  for (int iter = 1 - nBurnin; iter <= nSims; ++iter) {
+    
+    reportProgress(iter, nBurnin, nSims, nReport, 
+                   (iter > 0 ? iter / nThin : 0), start_time);
+    
+    // xi
+    e += c1 * xi;
+    xi = 1.0 / rig(N, c4 / arma::abs(e), prec * c3, parallel, nThreads);
+    c2dxi = c2 / xi;
+    e -= c1 * xi;
+    
+    // beta (COMMENT BASED ON X, WE DON'T WANT FIXED EFFECTS)
+    e += Xb;
+    Qp = P;
+    bp = PM;
+    for (int i = 0; i < N; ++i) {
+      Xaux = prec * c2dxi(i) * X.row(i).t();
+      Qp += Xaux * X.row(i);
+      bp += Xaux * e(i);
+    }
+    beta = RandomMultiNormalC(Qp, bp);
+    Xb = X * beta;
+    e -= Xb;
+    
+    // alpha m = 1,...,r
+    if (r > 0) {
+      for (int m = 0; m < r; ++m) {
+        alpha_m = alpha.col(m);
+        V_m = V.col(m);
+        e += V_m % alpha_m.elem(s);
+        Qn = hp(1, m) * R.slice(m);
+        bn = Qn * Xb_alpha[m];
+        for (int i = 0; i < n; ++i) {
+          V_block = V_m.elem(s_group[i]);
+          e_block = e.elem(s_group[i]);
+          c2dxi_block = c2dxi.elem(s_group[i]);
+          V_c2dxi_block = V_block % c2dxi_block;
+          Qn(i,i) += prec * arma::accu(V_c2dxi_block % V_block);
+          bn(i)   += prec * arma::accu(V_c2dxi_block % e_block);
+        }
+        alpha_m = RandomMultiNormalC(Qn, bn);
+        //alpha_m -= Vn * onen * (arma::accu(alpha_m) / arma::accu(Vn));
+        alpha.col(m) = alpha_m;
+        e -= V_m % alpha_m.elem(s);
+        
+        // mu 
+        xR[m] = hp(1, m) * X_alpha[m].t() * R.slice(m);
+        Qp_alpha[m] = xR[m] * X_alpha[m] + P_beta_alpha[m];
+        bp_alpha[m] = xR[m] * alpha_m + PM_beta_alpha[m];
+        beta_alpha[m] = RandomMultiNormalC(Qp_alpha[m], bp_alpha[m]);
+        Xb_alpha[m] = X_alpha[m] * beta_alpha[m];
+        
+        // decay
+        ldecay_aux  = R::rnorm(ldecay(m), sd(m));
+        decay_aux   = exp(ldecay_aux);
+        R_aux       = arma::inv_sympd(exp(- decay_aux * dist));
+        Rlogdet_aux = arma::log_det_sympd(R_aux);
+        vn       = alpha_m - Xb_alpha[m];
+        vtRv_aux = arma::as_scalar(vn.t() * R_aux * vn);
+        vtRv     = arma::as_scalar(vn.t() * R.slice(m) * vn);
+        ALPHA = 
+          (Rlogdet_aux - hp(1, m) * vtRv_aux) / 2 + 
+          da * ldecay_aux - db * decay_aux - 
+          ((Rlogdet(m) - hp(1, m) * vtRv) / 2 +
+          da * ldecay(m) - db * hp(2, m));
+        if (log(R::runif(0, 1)) < ALPHA) {
+          ++accept(m);
+          hp(2, m) = decay_aux;
+          ldecay(m) = ldecay_aux;
+          R.slice(m) = R_aux;
+          Rlogdet(m) = Rlogdet_aux;
+          vtRv = vtRv_aux;
+        }
+        
+        // prec
+        D = 0.5 * vtRv + gb;
+        hp(1, m) = R::rgamma(C, 1.0 / D);
+      }
+    }
+    
+    // tune sd of the proposal for decay
+    if (iter == 0) {
+      accept.zeros();
+      total = 0;
+    } else if ((iter < 1) && (++total % 25 == 0)) {
+      ratio = accept / total;
+      for (int m = 0; m < r; ++m) {
+        if (ratio(m) > 0.33) {
+          lsd(m) += 1 / sqrt(total / 25);
+        } else {
+          lsd(m) -= 1 / sqrt(total / 25);
+        }
+        sd(m) = exp(lsd(m));
+      }
+    }
+    
+    // prec
+    B = arma::accu(xi + 0.5 * c2dxi % arma::square(e)) + gb;
+    prec = R::rgamma(A, 1.0 / B);
+    
+    // Y missing
+    if (missing_n > 0) {
+      e.elem(missing_idx) -= Y.elem(missing_idx);
+      mm = X.rows(missing_idx) * beta + c1 * xi.elem(missing_idx);
+      ss = arma::sqrt(xi.elem(missing_idx) / (prec * c2));
+      Y.elem(missing_idx) = mm + ss % arma::randn(missing_n);
+      if (r > 0) {
+        for (int m = 0; m < r; ++m) {
+          alpha_m = alpha.col(m);
+          V_m = V.col(m);
+          s_missing = s.elem(missing_idx);
+          Y.elem(missing_idx) += V_m.elem(missing_idx) % alpha_m.elem(s_missing);
+        }
+      }
+      e.elem(missing_idx) += Y.elem(missing_idx);
+      
+      if (iter > 0 && iter % nThin == 0) {
+        keep_Y.row(save_idx) = Y.elem(missing_idx).t();
+      }
+    }
+    
+    // keep
+    if (iter > 0 && iter % nThin == 0) {
+      keep(save_idx, arma::span(0, p - 1)) = beta.t();
+      keep(save_idx, p) = prec;
+      if (r > 0) {
+        nCols2 = 0;
+        for (int m = 0; m < r; ++m) {
+          keep_alpha(save_idx, arma::span(nCols2, n - 1 + nCols2)) = alpha.col(m).t();
+          keep_alpha(save_idx, arma::span(n + nCols2, n + p_alpha[m] - 1 + nCols2)) = beta_alpha[m].t();
+          keep_alpha(save_idx, arma::span(n + p_alpha[m] + nCols2, n + p_alpha[m] + 2 + nCols2)) = hp.col(m).t();
+          nCols2 += n + p_alpha[m] + 3;
+        }
+      }
+      ++save_idx;
+    }
+  }
+  
+  if (missing_n == 0) {
+    return Rcpp::List::create(
+      Rcpp::Named("params") = keep,
+      Rcpp::Named("process") = keep_alpha
+    );
+  } else {
+    return Rcpp::List::create(
+      Rcpp::Named("params") = keep,
+      Rcpp::Named("process") = keep_alpha,
+      Rcpp::Named("missing") = keep_Y
+    );
+  }
+}
+
