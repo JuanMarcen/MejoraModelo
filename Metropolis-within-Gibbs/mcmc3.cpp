@@ -98,11 +98,11 @@ Rcpp::List spQuantileRcpp(
   
   
   // modificado para que ean matrices que se corresponden con hp 
-  arma::mat accept(4, r, arma::fill::zeros);//new
+  arma::mat accept(5, r, arma::fill::zeros);//new
   int total = 0;
-  arma::mat ratio(4, r);//new
-  arma::mat sd(4, r, arma::fill::ones);//new
-  arma::mat lsd(4, r, arma::fill::zeros); //new
+  arma::mat ratio(5, r);//new
+  arma::mat sd(5, r, arma::fill::ones);//new
+  arma::mat lsd(5, r, arma::fill::zeros); //new
   
   arma::cube R(n, n, r);
   arma::vec Rlogdet(r);
@@ -111,7 +111,7 @@ Rcpp::List spQuantileRcpp(
   //new function in utils 
   for (int m = 0; m < r; ++m){
     R.slice(m) = inv_covariance_matrix(hp(0, m), hp(1, m), hp(2, m), hp(3, m), 
-            dist, dist_coast, dist_coast_points);
+            hp(4, m), dist, dist_coast, dist_coast_points);
     Rlogdet(m) = arma::log_det_sympd(R.slice(m));
   }
   
@@ -128,6 +128,10 @@ Rcpp::List spQuantileRcpp(
   double varphi_aux;
   double lvarphi_aux = 0;
   arma::vec lvarphi = log(hp.row(3).t());
+  double cprec_aux;
+  double lcprec_aux = 0;
+  arma::vec lcprec = log(hp.row(4).t());
+  
   arma::mat R_aux(n, n);
   double Rlogdet_aux;
   
@@ -147,7 +151,7 @@ Rcpp::List spQuantileRcpp(
   //new ajuste de numero de cols 2
   int save_idx = 0;
   int nCols1 = p + 1;
-  int nCols2 = r * (n + 4) + arma::accu(p_alpha);
+  int nCols2 = r * (n + 5) + arma::accu(p_alpha);
   arma::mat keep(nKeep, nCols1);
   arma::mat keep_alpha(nKeep, nCols2);
   
@@ -209,7 +213,7 @@ Rcpp::List spQuantileRcpp(
         ldecay_aux  = R::rnorm(ldecay(m), sd(1, m));
         decay_aux   = exp(ldecay_aux);
         R_aux       = inv_covariance_matrix(hp(0, m), decay_aux, hp(2, m), hp(3, m),
-                                            dist, dist_coast, dist_coast_points);
+                                            hp(4, m), dist, dist_coast, dist_coast_points);
         Rlogdet_aux = arma::log_det_sympd(R_aux);
         vn       = alpha_m - Xb_alpha[m];
         vtRv_aux = arma::as_scalar(vn.t() * R_aux * vn);
@@ -232,7 +236,7 @@ Rcpp::List spQuantileRcpp(
         lprecision_aux  = R::rnorm(lprecision(m), sd(0, m));
         precision_aux   = exp(lprecision_aux);
         R_aux       = inv_covariance_matrix(precision_aux, hp(1, m), hp(2, m), hp(3, m),
-                                            dist, dist_coast, dist_coast_points);
+                                            hp(4, m), dist, dist_coast, dist_coast_points);
         Rlogdet_aux = arma::log_det_sympd(R_aux);
         vn       = alpha_m - Xb_alpha[m];
         vtRv_aux = arma::as_scalar(vn.t() * R_aux * vn);
@@ -254,7 +258,7 @@ Rcpp::List spQuantileRcpp(
         lvarsigma_aux  = R::rnorm(lvarsigma(m), sd(2, m));
         varsigma_aux   = exp(lvarsigma_aux);
         R_aux       = inv_covariance_matrix(hp(0, m), hp(1, m), varsigma_aux, hp(3, m),
-                                            dist, dist_coast, dist_coast_points);
+                                            hp(4, m), dist, dist_coast, dist_coast_points);
         Rlogdet_aux = arma::log_det_sympd(R_aux);
         vn       = alpha_m - Xb_alpha[m];
         vtRv_aux = arma::as_scalar(vn.t() * R_aux * vn);
@@ -276,7 +280,7 @@ Rcpp::List spQuantileRcpp(
         lvarphi_aux  = R::rnorm(lvarphi(m), sd(3, m));
         varphi_aux   = exp(lvarphi_aux);
         R_aux       = inv_covariance_matrix(hp(0, m), hp(1, m), hp(2, m), varphi_aux,
-                                            dist, dist_coast, dist_coast_points);
+                                            hp(4, m), dist, dist_coast, dist_coast_points);
         Rlogdet_aux = arma::log_det_sympd(R_aux);
         vn       = alpha_m - Xb_alpha[m];
         vtRv_aux = arma::as_scalar(vn.t() * R_aux * vn);
@@ -293,6 +297,28 @@ Rcpp::List spQuantileRcpp(
           Rlogdet(m) = Rlogdet_aux;
           vtRv = vtRv_aux;
         }
+        
+        // cprec
+        lcprec_aux  = R::rnorm(lcprec(m), sd(4, m));
+        cprec_aux   = exp(lcprec_aux);
+        R_aux       = inv_covariance_matrix(hp(0, m), hp(1, m), hp(2, m), hp(3, m),
+                                            cprec_aux, dist, dist_coast, dist_coast_points);
+        Rlogdet_aux = arma::log_det_sympd(R_aux);
+        vn       = alpha_m - Xb_alpha[m];
+        vtRv_aux = arma::as_scalar(vn.t() * R_aux * vn);
+        ALPHA = 
+          (Rlogdet_aux - vtRv_aux) / 2 + 
+          ga * lcprec_aux - gb * cprec_aux - 
+          ((Rlogdet(m) - vtRv) / 2 +
+          ga * lcprec(m) - gb * hp(4, m));
+        if (log(R::runif(0, 1)) < ALPHA) {
+          ++accept(4, m);
+          hp(4, m) = cprec_aux;
+          lcprec(m) = lcprec_aux;
+          R.slice(m) = R_aux;
+          Rlogdet(m) = Rlogdet_aux;
+          vtRv = vtRv_aux;
+        }
       }
     }
     
@@ -303,7 +329,7 @@ Rcpp::List spQuantileRcpp(
     } else if ((iter < 1) && (++total % 25 == 0)) {
       ratio = accept / total;
       for (int m = 0; m < r; ++m) {
-        for (int j = 0; j < 4; ++j){
+        for (int j = 0; j < 5; ++j){
           if (ratio(j, m) > 0.33) {
             lsd(j, m) += 1 / sqrt(total / 25);
           } else {
@@ -350,8 +376,8 @@ Rcpp::List spQuantileRcpp(
         for (int m = 0; m < r; ++m) {
           keep_alpha(save_idx, arma::span(nCols2, n - 1 + nCols2)) = alpha.col(m).t();
           keep_alpha(save_idx, arma::span(n + nCols2, n + p_alpha[m] - 1 + nCols2)) = beta_alpha[m].t();
-          keep_alpha(save_idx, arma::span(n + p_alpha[m] + nCols2, n + p_alpha[m] + 3 + nCols2)) = hp.col(m).t();
-          nCols2 += n + p_alpha[m] + 4;
+          keep_alpha(save_idx, arma::span(n + p_alpha[m] + nCols2, n + p_alpha[m] + 4 + nCols2)) = hp.col(m).t();
+          nCols2 += n + p_alpha[m] + 5;
         }
       }
       ++save_idx;

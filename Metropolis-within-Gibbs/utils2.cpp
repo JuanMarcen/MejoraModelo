@@ -92,6 +92,7 @@ arma::mat inv_covariance_matrix(
   const double decay, //hp(1, m)
   const double varsigma, //hp(2, m)
   const double varphi, //hp(3, m)
+  const double cprec, //hp(4, m)
   const arma::mat& dmat,
   const arma::vec& dvec,
   const arma::mat& dmatc
@@ -104,7 +105,7 @@ arma::mat inv_covariance_matrix(
   // row multiplication
   Mcoast.each_col() %= expdc;
 
-  arma::mat R = arma::inv_sympd(1.0 / precision * exp(- decay * dmat) + Mcoast);
+  arma::mat R = arma::inv_sympd(1.0 / precision * exp(- decay * dmat) + 1.0 / cprec * Mcoast);
 
   return R;
 }
