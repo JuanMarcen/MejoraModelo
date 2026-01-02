@@ -116,6 +116,7 @@ esc_tabla_negrita(R1.df, colq0.5 = c(1,2,3), colq0.95 = c(4,5,6), negrita = T)
 #######################################
 # NEW LOCAL MODELS
 # M3
+library(quantreg)
 formula <- as.formula('Y ~ s.1 + c.1 + g300 + g500 + g700')
 vars <- c('s.1', 'c.1', 'g300', 'g500', 'g700')
 
@@ -145,27 +146,28 @@ for (station in stations$NAME2){
                                    subset = ind)
   
   #confidence intervals
-  boot <- boot.rq(x = cbind(1, df[ind, vars]),
-                    y = df[ind, 'Y'], 
-                    tau = 0.95)
-  IC <- t(apply(boot$B, 2, quantile, probs = c(0.025, 0.975)))
-  
-  aux <- data.frame(
-    station = rep(station, 6),
-    term  = names(M3.models.q0.95[[station]]$coefficients),
-    est = as.numeric(M3.models.q0.95[[station]]$coefficients),
-    lower = IC[, 1],
-    upper = IC[, 2],
-    stringsAsFactors = FALSE
-  )
-  
-  df.ic.q0.95 <- rbind(df.ic.q0.95, aux)
+  # boot <- boot.rq(x = cbind(1, df[ind, vars]),
+  #                   y = df[ind, 'Y'], 
+  #                   tau = 0.95)
+  # IC <- t(apply(boot$B, 2, quantile, probs = c(0.025, 0.975)))
+  # 
+  # aux <- data.frame(
+  #   station = rep(station, 6),
+  #   term  = names(M3.models.q0.95[[station]]$coefficients),
+  #   est = as.numeric(M3.models.q0.95[[station]]$coefficients),
+  #   lower = IC[, 1],
+  #   upper = IC[, 2],
+  #   stringsAsFactors = FALSE
+  # )
+  # 
+  # df.ic.q0.95 <- rbind(df.ic.q0.95, aux)
 }
 
 saveRDS(df.ic.q0.95, 'df.ic.q0.95.rds')
 
 library(dplyr)
 library(ggplot2)
+library(viridis)
 dist <- readRDS('dist.full.coast.rds')
 
 #plots CI
@@ -199,3 +201,107 @@ for (i in 1:length(vars)){
   ggsave(filename, g, height = 8, width = 12)
   
 }
+
+# maps of parameters
+stations <- st_transform(
+  as(
+    SpatialPointsDataFrame(
+      coords = stations[c("LON", "LAT")],
+      data = stations,
+      proj4string = CRS("+proj=longlat +datum=WGS84 +ellps=WGS84 +towgs84=0,0,0")
+    ),
+    'sf'
+  ),
+  2062
+)
+
+limits <- st_transform(
+  as(
+    SpatialPointsDataFrame(
+      coords = data.frame(X = c(-10.2, 5.2), Y = c(34.8, 44)),
+      data = data.frame(X = c(-10.2, 5.2), Y = c(34.8, 44)),
+      proj4string = CRS("+proj=longlat +datum=WGS84 +ellps=WGS84 +towgs84=0,0,0")
+    ),
+    'sf'
+  ),
+  2062
+)
+
+world_map <- ne_countries(scale = "large", returnclass = 'sf')
+european_union <- c("Algeria", "Andorra", "France", "Gibraltar", "Morocco", 
+                    "Portugal", "Spain")
+european_union_map <- world_map %>% filter(name %in% european_union)
+background <- st_transform(european_union_map, 2062)
+
+# paramater values as df
+map.coef <- function(var){
+  aux.df <- stations
+  aux.val.q0.50 <- c()
+  aux.val.q0.95 <- c()
+  for (station in aux.df$NAME2){
+    aux.val.q0.50 <- c(aux.val.q0.50, M3.models.q0.50[[station]]$coefficients[var])
+    aux.val.q0.95 <- c(aux.val.q0.95, M3.models.q0.95[[station]]$coefficients[var])
+  }
+  aux.df$varq0.50 <- aux.val.q0.50
+  aux.df$varq0.95 <- aux.val.q0.95
+  
+  #m3 q0.50
+  g1 <- ggplot(data = background) +
+    geom_sf(fill = "antiquewhite") +
+    xlab("Longitude") + 
+    ylab("Latitude") + 
+    ggtitle(paste0(var, ' coefficient (q0.50)')) +
+    theme(panel.background = element_rect(fill = "aliceblue"),
+          axis.text.x=element_text(size = 6),
+          axis.text.y=element_text(size = 6, angle = 90),
+          axis.title=element_text(size = 10, face = "bold")) + 
+    #values
+    geom_sf(data = aux.df, 
+            aes(color = varq0.50, size = varq0.50)) + 
+    scale_color_viridis(name = var,
+                        option = 'viridis',
+                        limits = c(min(aux.df$varq0.50),max(aux.df$varq0.50)),
+                        direction = 1) +
+    scale_size_continuous(
+      range = c(1, 3),   # tamaño mínimo y máximo
+      guide = "none"     # quita la leyenda del tamaño
+    ) +
+    # limits
+    coord_sf(xlim = st_coordinates(limits)[, 1], ylim = st_coordinates(limits)[, 2]) 
+  
+  # m3 q0.95
+  g2 <- ggplot(data = background) +
+    geom_sf(fill = "antiquewhite") +
+    xlab("Longitude") + 
+    ylab("Latitude") + 
+    ggtitle(paste0(var, ' coefficient (q0.95)')) + 
+    theme(panel.background = element_rect(fill = "aliceblue"),
+          axis.text.x=element_text(size = 6),
+          axis.text.y=element_text(size = 6, angle = 90),
+          axis.title=element_text(size = 10, face = "bold")) + 
+    #values
+    geom_sf(data = aux.df, 
+            aes(color = varq0.95, size = varq0.95)) + 
+    scale_color_viridis(name = var,
+                        option = 'viridis',
+                        limits = c(min(aux.df$varq0.95),max(aux.df$varq0.95)),
+                        direction = 1) +
+    scale_size_continuous(
+      range = c(1, 3),   # tamaño mínimo y máximo
+      guide = "none"     # quita la leyenda del tamaño
+    ) +
+    # limits
+    coord_sf(xlim = st_coordinates(limits)[, 1], ylim = st_coordinates(limits)[, 2]) 
+  
+  g <- ggpubr::ggarrange(g1, g2, ncol = 2)
+  return(g)
+}
+
+#saving 
+for(var in vars){
+  g <- map.coef(var)
+  filename <- paste0('graphs/local models/maps/', var, '.pdf')
+  ggsave(filename,
+         g, height = 7*0.75, width = 16*0.75)
+}
+

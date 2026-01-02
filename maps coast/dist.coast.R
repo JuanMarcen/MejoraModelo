@@ -23,6 +23,8 @@ stations <- st_transform(
   2062
 )
 
+dist.matrix <- units::drop_units(round(st_distance(stations)/1000, 3))
+saveRDS(dist.matrix, 'maps coast/dist.matrix.rds')
 # --- peninsular limits and grid ---
 limits <- st_transform(
   as(
@@ -47,6 +49,22 @@ spain_coords <- Polygons(
 spain_coords <- SpatialPolygons(list(spain_coords))
 spain_coords <- as(spain_coords, "sf")
 st_crs(spain_coords) <- st_crs(spain)
+
+# Portugal
+portugal <- ne_countries(
+  scale = "large",
+  country = "Portugal",
+  returnclass = "sf"
+)
+portugal <- st_transform(portugal, 2062)
+
+# Unión España peninsular + Portugal
+iberian_peninsula <- st_union(spain_coords, portugal)
+iberian_peninsula <- st_make_valid(iberian_peninsula)
+iberian_boundary <- st_boundary(iberian_peninsula)
+
+# spain_peninsula <- st_make_valid(spain_coords)
+# spain_boundary <- st_boundary(spain_peninsula)
 
 # Grid (centers 10x10 km) and intersection with peninsula
 grid <- st_make_grid(spain, cellsize = 10000, what = "centers")
@@ -79,9 +97,49 @@ if(nrow(full_coastline_2062) == 0) {
   stop("La intersección devolvió 0 líneas de costa mediterránea. Ajusta el med_bbox.")
 }
 
+# DEFINITION 2 (CUSTOM POLYGON) GOOD ONE
+# Iberian Peninsula polygon (EPSG:4326)
+iberian_poly_4326 <- st_sfc(
+  st_polygon(list(matrix(
+    c(
+      -1.7973703292203114, 43.420658518267985,
+      -10.685085614545189, 44.277700140621846,
+      -9.806179364545189, 35.24679268225082,
+      -5.398430544071187, 35.95919861144038,
+      0.32249797600901964, 36.981823151967866,
+      1.0695682885090196, 40.17583174219498,
+      4.23363078850902, 41.60425160613797,
+      3.301653557815749, 42.45836262739984,
+      -1.7973703292203114, 43.420658518267985
+    ),
+    ncol = 2,
+    byrow = TRUE
+  ))),
+  crs = 4326
+)
+
+# Full world coastline
+coastline_world <- ne_coastline(scale = "large", returnclass = "sf")
+
+# Transform to working CRS
+coastline_2062 <- st_transform(coastline_world, 2062)
+iberian_poly_2062 <- st_transform(iberian_poly_4326, 2062)
+
+iberian_coast_2062 <- st_intersection(coastline_2062, iberian_poly_2062)
+
+# Cast geometry to LINESTRING
+iberian_coast_2062 <- st_cast(iberian_coast_2062, "LINESTRING", warn = FALSE)
+
+# Check
+if (nrow(iberian_coast_2062) == 0) {
+  stop("The intersection returned 0 coastline segments.")
+}
+
 # ---------------------------
 # DISTANCES (km)
 # ---------------------------
+
+full_coastline_2062 <- iberian_coast_2062
 
 # Grid distance
 dist_grid_to_coast <- st_distance(grid, full_coastline_2062)
@@ -93,6 +151,8 @@ grid$dist <- round(min_dist_grid_m / 1000, 3)
 dist_st_to_coast <- st_distance(stations$geometry, full_coastline_2062)
 min_dist_st_m <- apply(as.matrix(dist_st_to_coast), 1, min)
 stations$dist <- round(min_dist_st_m / 1000, 3)
+
+saveRDS(stations$dist, 'maps coast/dist.vec.rds')
 
 # ---------------------------
 # PLOT 
@@ -133,7 +193,6 @@ g <- ggplot(data = background) +
 ggsave('graphs/maps/dist.coast.pdf',
        g, height = 8, width = 8)
 
-saveRDS(stations$dist, 'dist.full.coast.rds')
 
 
 # -----------------------------------
@@ -159,6 +218,10 @@ nearest_points_coast <- st_cast(
   group_by(id) %>%
   slice(2) %>%
   ungroup()
+
+
+dist.coast.points <- units::drop_units(st_distance(nearest_points_coast))
+saveRDS(dist.coast.points, 'maps coast/dist.coast.points.rds')
 
 g2 <- ggplot(background) +
   geom_sf(fill = "antiquewhite") +
@@ -194,3 +257,53 @@ g2 <- ggplot(background) +
 ggsave('graphs/maps/points.coast.pdf',
        g2, height = 8, width = 8)
 
+# -----------------------------------
+# PARAMETRIZATION r(s)
+# -----------------------------------
+
+coast_line <- st_line_merge(coast_union)
+coast_length <- st_length(coast_line)
+coast_coords <- st_coordinates(coast_line)[, 1:2]
+dr <- sqrt(
+  diff(coast_coords[,1])^2 +
+    diff(coast_coords[,2])^2
+)
+
+r_coast <- c(0, cumsum(dr))
+coast_proj <- st_coordinates(nearest_points_coast)
+
+nearest_vertex <- apply(coast_proj, 1, function(p) {
+  which.min(
+    (coast_coords[,1] - p[1])^2 +
+      (coast_coords[,2] - p[2])^2
+  )
+})
+
+
+stations$r <- r_coast[nearest_vertex] / 1000  # km
+
+#matix of distances
+dist.coast.points2 <- abs(outer(stations$r, stations$r, '-'))
+saveRDS(dist.coast.points2, 'maps coast/dist.coast.points2.rds')
+
+ggplot(background) +
+  geom_sf(fill = "antiquewhite") +
+  geom_sf(data = full_coastline_2062, color = "blue") +
+  
+  # estaciones
+  geom_sf(data = stations, aes(color = r), size = 2) +
+  
+  # puntos de la costa seleccionados
+  geom_sf(
+    data = nearest_points_coast,
+    color = "black",
+    shape = 4,
+    size = 3,
+    stroke = 1
+  ) +
+  
+  scale_color_viridis_c(name = "r(s) [km]") +
+  coord_sf(
+    xlim = st_coordinates(limits)[,1],
+    ylim = st_coordinates(limits)[,2]
+  )

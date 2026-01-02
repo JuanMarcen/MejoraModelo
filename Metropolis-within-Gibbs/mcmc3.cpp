@@ -6,47 +6,42 @@
 // spatial quantile model
 // [[Rcpp::export]]
 Rcpp::List spQuantileRcpp(
-    const double tau,      // quantile level
-    arma::vec Y,           // data
-    const arma::mat& X,   //design matrix Nxp
-    const arma::mat& V,   // spatial effects Nxr
-    const std::vector<arma::mat>& X_alpha, //list of matrix Nxp_m
-    const arma::mat& dist, //distances between stations nxn 
-    const arma::vec& M,    // prior values
+    const double tau,      
+    arma::vec Y,           
+    const arma::mat& X,  
+    const arma::mat& V,   
+    const std::vector<arma::mat>& X_alpha, 
+    const arma::mat& dist, 
+    const arma::vec& dist_coast, //new
+    const arma::mat& dist_coast_points, //new 
+    const arma::vec& M,    
     const arma::mat& P,
     const std::vector<arma::vec>& M_beta_alpha,
     const std::vector<arma::mat>& P_beta_alpha,
-    // ADD PRIORS FOR REST?
     const double da,    
-    const double db,    
+    const double db,    // add priors resto hp
     const double ga,
     const double gb,
     const double na,    
     const double nb,    
-    arma::vec beta,        // initial px1
-    arma::mat alpha,    // nxr
-    double prec, //1/sigma
-    arma::mat hp, //hiperparameters (1/sigma^2, phi, varsigma, varphi)
-    // (4 x r)
+    arma::vec beta,        
+    arma::mat alpha,   
+    double prec, 
+    arma::mat hp, 
     std::vector<arma::vec>& beta_alpha,
-    const int N,          // constants
+    const int N,          
     const int n,        
     const int p,
     const int r,
-    const arma::vec& p_alpha, //p_m
-    const arma::uvec& s,  // index vector
-    const int nSims,      // MCMC numbers
+    const arma::vec& p_alpha, 
+    const arma::uvec& s,  
+    const int nSims,      
     const int nThin,
     const int nBurnin,
-    const int nReport,
-    //const bool parallel,  // parallel
-    //const int nThreads
-    // ADD NEW DISTANCES
-    const arma::vec& dist_coast, // nx1
-    const arma::mat& dist_coast_points //nxn
+    const int nReport
+    
 ) {
   
-  // missing index (SAME)
   int nKeep = nSims / nThin;
   const arma::uvec missing_idx = arma::find_nonfinite(Y);
   const arma::uword missing_n = missing_idx.n_elem;
@@ -55,7 +50,7 @@ Rcpp::List spQuantileRcpp(
   const double mean_Y = arma::mean(Y.elem(arma::find_finite(Y)));
   Y.elem(missing_idx).fill(mean_Y);
   
-  // constants (SAME)
+  
   const double c1 = (1 - 2 * tau) / (tau * (1 - tau));
   const double c2 = tau * (1 - tau) / 2;
   const double c3 = 2 + c1 * c1 * c2;
@@ -66,13 +61,13 @@ Rcpp::List spQuantileRcpp(
     PM_beta_alpha[m] = P_beta_alpha[m] * M_beta_alpha[m];
   }
   
-  // aux
+  
   arma::vec c2dxi(N);
   arma::vec Xaux(p);
-  // latent
+  
   arma::vec xi(N, arma::fill::ones);
   
-  // residual
+  
   arma::vec Xb = X * beta;
   arma::vec e  = Y - Xb - c1 * xi;
   arma::vec alpha_m(n);
@@ -89,8 +84,7 @@ Rcpp::List spQuantileRcpp(
     Xb_alpha[m] = X_alpha[m] * beta_alpha[m];
   }
   
-  // aux GP
-  //arma::vec onen(n, arma::fill::ones);
+  
   int Ndn = N / n;
   
   std::vector<arma::uvec> s_group(n);
@@ -101,42 +95,27 @@ Rcpp::List spQuantileRcpp(
   arma::vec V_block(Ndn), e_block(Ndn);
   arma::vec c2dxi_block(Ndn), V_c2dxi_block(Ndn);
   
-  // my mean is no 0, i dont estimate the mean of the GP
-  //hp.row(0).zeros(); //temporal
   
-  // repeat for all hiperparameters??
-  // aux decay and rest (matrix 4 x r)
-  arma::mat accept(4, r, arma::fill::zeros);
+  
+  // modificado para que ean matrices que se corresponden con hp 
+  arma::mat accept(4, r, arma::fill::zeros);//new
   int total = 0;
-  arma::mat ratio(4, r);
-  arma::mat sd(4, r, arma::fill::ones);
-  arma::mat lsd(4, r, arma::fill::zeros); // log(sd);
+  arma::mat ratio(4, r);//new
+  arma::mat sd(4, r, arma::fill::ones);//new
+  arma::mat lsd(4, r, arma::fill::zeros); //new
   
   arma::cube R(n, n, r);
   arma::vec Rlogdet(r);
   std::vector<arma::mat> xR(r);
   
-  // new definition of the covariance matrices
-  // arma::vec expdc = arma::exp(- hp(2, m) * dist_coast); //nx1
-  // arma::mat Mcoast = arma::exp(-hp(3, m) * dist_coast_points); //nxn
-  // // column multiplication
-  // Mcoast.each_row() %= expdc.t();
-  // // row multiplication
-  // Mcoast.each_col() %= expdc;
-  
-  // for (int m = 0; m < r; ++m) {
-  //   R.slice(m) = arma::inv_sympd(exp(- hp(1, m) * dist) + Mcoast);
-  //   Rlogdet(m) = arma::log_det_sympd(R.slice(m));
-  // }
-  
-  // USE OF THE FUNCTION I CREATED
+  //new function in utils 
   for (int m = 0; m < r; ++m){
     R.slice(m) = inv_covariance_matrix(hp(0, m), hp(1, m), hp(2, m), hp(3, m), 
             dist, dist_coast, dist_coast_points);
     Rlogdet(m) = arma::log_det_sympd(R.slice(m));
   }
   
-  // for adaptative (ADD REST OF HP)
+  //new aux for all hp
   double precision_aux;
   double lprecision_aux = 0;
   arma::vec lprecision = log(hp.row(0).t());
@@ -145,11 +124,10 @@ Rcpp::List spQuantileRcpp(
   arma::vec ldecay = log(hp.row(1).t());
   double varsigma_aux;
   double lvarsigma_aux = 0;
-  arma::vec lvarsigma = log(hp.row(3).t());
+  arma::vec lvarsigma = log(hp.row(2).t());
   double varphi_aux;
   double lvarphi_aux = 0;
-  arma::vec lvarphi = log(hp.row(4).t());
-  // the following will be overwritten
+  arma::vec lvarphi = log(hp.row(3).t());
   arma::mat R_aux(n, n);
   double Rlogdet_aux;
   
@@ -157,44 +135,35 @@ Rcpp::List spQuantileRcpp(
   double vtRv, vtRv_aux;
   double ALPHA = 0;
   
-  // full posterior Precision rhs of beta
   arma::mat Qp(p, p);
   arma::vec bp(p);
-  // full posterior Precision rhs of alpha
   arma::mat Qn(n, n);
   arma::vec bn(n);
-  // full posterior Precision rhs of beta_alpha
   std::vector<arma::mat> Qp_alpha(r);
   std::vector<arma::vec> bp_alpha(r);
-  // full posterior parameters A B of prec, and C D of prec (alpha)
   double A = 1.5 * N + ga;
   double B;
-  //double C = 0.5 * n + ga;
-  //double D;
   
-  // save (LOOK THE INTERCEPT?)
+  //new ajuste de numero de cols 2
   int save_idx = 0;
   int nCols1 = p + 1;
   int nCols2 = r * (n + 4) + arma::accu(p_alpha);
   arma::mat keep(nKeep, nCols1);
   arma::mat keep_alpha(nKeep, nCols2);
   
-  // time
   auto start_time = std::chrono::steady_clock::now();
   
-  // iterations
   for (int iter = 1 - nBurnin; iter <= nSims; ++iter) {
     
     reportProgress(iter, nBurnin, nSims, nReport, 
                    (iter > 0 ? iter / nThin : 0), start_time);
     
-    // xi (SAME)
     e += c1 * xi;
     xi = 1.0 / rig(N, c4 / arma::abs(e), prec * c3);
     c2dxi = c2 / xi;
     e -= c1 * xi;
     
-    // beta (COMMENT BASED ON X, WE DON'T WANT FIXED EFFECTS)
+    //new 
     if (p > 0){
       e += Xb;
       Qp = P;
@@ -209,7 +178,8 @@ Rcpp::List spQuantileRcpp(
       e -= Xb;
     }
     
-    // alpha m = 1,...,r
+    //new R slice m no requiere de multiplicaciones extras
+    //new MH para todos hp
     if (r > 0) {
       for (int m = 0; m < r; ++m) {
         alpha_m = alpha.col(m);
@@ -226,16 +196,14 @@ Rcpp::List spQuantileRcpp(
           bn(i)   += prec * arma::accu(V_c2dxi_block % e_block);
         }
         alpha_m = RandomMultiNormalC(Qn, bn);
-        //alpha_m -= Vn * onen * (arma::accu(alpha_m) / arma::accu(Vn));
         alpha.col(m) = alpha_m;
         e -= V_m % alpha_m.elem(s);
         
-        // mu (gammas_k)
         xR[m] = X_alpha[m].t() * R.slice(m);
         Qp_alpha[m] = xR[m] * X_alpha[m] + P_beta_alpha[m];
         bp_alpha[m] = xR[m] * alpha_m + PM_beta_alpha[m];
         beta_alpha[m] = RandomMultiNormalC(Qp_alpha[m], bp_alpha[m]);
-        Xb_alpha[m] = X_alpha[m] * beta_alpha[m]; //zeta_k * gamma_k (mean GP)
+        Xb_alpha[m] = X_alpha[m] * beta_alpha[m]; 
         
         // decay
         ldecay_aux  = R::rnorm(ldecay(m), sd(1, m));
@@ -260,7 +228,7 @@ Rcpp::List spQuantileRcpp(
           vtRv = vtRv_aux;
         }
         
-        // precision (change arguments of priors!!)
+        // precision
         lprecision_aux  = R::rnorm(lprecision(m), sd(0, m));
         precision_aux   = exp(lprecision_aux);
         R_aux       = inv_covariance_matrix(precision_aux, hp(1, m), hp(2, m), hp(3, m),
@@ -268,12 +236,11 @@ Rcpp::List spQuantileRcpp(
         Rlogdet_aux = arma::log_det_sympd(R_aux);
         vn       = alpha_m - Xb_alpha[m];
         vtRv_aux = arma::as_scalar(vn.t() * R_aux * vn);
-        //vtRv     = arma::as_scalar(vn.t() * R.slice(m) * vn); //we use the previous
         ALPHA = 
           (Rlogdet_aux - vtRv_aux) / 2 + 
-          da * lprecision_aux - db * precision_aux - 
+          ga * lprecision_aux - gb * precision_aux - 
           ((Rlogdet(m) - vtRv) / 2 +
-          da * lprecision(m) - db * hp(0, m));
+          ga * lprecision(m) - gb * hp(0, m));
         if (log(R::runif(0, 1)) < ALPHA) {
           ++accept(0, m);
           hp(0, m) = precision_aux;
@@ -293,9 +260,9 @@ Rcpp::List spQuantileRcpp(
         vtRv_aux = arma::as_scalar(vn.t() * R_aux * vn);
         ALPHA = 
           (Rlogdet_aux - vtRv_aux) / 2 + 
-          da * lvarsigma_aux - db * varsigma_aux - 
+          ga * lvarsigma_aux - gb * varsigma_aux - 
           ((Rlogdet(m) - vtRv) / 2 +
-          da * lvarsigma(m) - db * hp(2, m));
+          ga * lvarsigma(m) - gb * hp(2, m));
         if (log(R::runif(0, 1)) < ALPHA) {
           ++accept(2, m);
           hp(2, m) = varsigma_aux;
@@ -315,9 +282,9 @@ Rcpp::List spQuantileRcpp(
         vtRv_aux = arma::as_scalar(vn.t() * R_aux * vn);
         ALPHA = 
           (Rlogdet_aux - vtRv_aux) / 2 + 
-          da * lvarphi_aux - db * varphi_aux - 
+          ga * lvarphi_aux - gb * varphi_aux - 
           ((Rlogdet(m) - vtRv) / 2 +
-          da * lvarphi(m) - db * hp(3, m));
+          ga * lvarphi(m) - gb * hp(3, m));
         if (log(R::runif(0, 1)) < ALPHA) {
           ++accept(3, m);
           hp(3, m) = varphi_aux;
@@ -329,14 +296,13 @@ Rcpp::List spQuantileRcpp(
       }
     }
     
-    // tune sd of the proposal for decay (and rest of hyperparameters)
+    // tuneo sd en cada hp
     if (iter == 0) {
       accept.zeros();
       total = 0;
     } else if ((iter < 1) && (++total % 25 == 0)) {
       ratio = accept / total;
       for (int m = 0; m < r; ++m) {
-        // tune for each parameter
         for (int j = 0; j < 4; ++j){
           if (ratio(j, m) > 0.33) {
             lsd(j, m) += 1 / sqrt(total / 25);
@@ -348,11 +314,9 @@ Rcpp::List spQuantileRcpp(
       }
     }
     
-    // prec
     B = arma::accu(xi + 0.5 * c2dxi % arma::square(e)) + gb;
     prec = R::rgamma(A, 1.0 / B);
     
-    // Y missing
     if (missing_n > 0) {
       e.elem(missing_idx) -= Y.elem(missing_idx);
       mm = X.rows(missing_idx) * beta + c1 * xi.elem(missing_idx);
@@ -373,17 +337,21 @@ Rcpp::List spQuantileRcpp(
       }
     }
     
-    // keep
+    // small modifications for good saving
     if (iter > 0 && iter % nThin == 0) {
-      keep(save_idx, arma::span(0, p - 1)) = beta.t();
-      keep(save_idx, p) = prec;
+      if (p > 0){
+        keep(save_idx, arma::span(0, p - 1)) = beta.t();
+        keep(save_idx, p) = prec;
+      }else{
+        keep(save_idx, 0) = prec;
+      }
       if (r > 0) {
         nCols2 = 0;
         for (int m = 0; m < r; ++m) {
           keep_alpha(save_idx, arma::span(nCols2, n - 1 + nCols2)) = alpha.col(m).t();
           keep_alpha(save_idx, arma::span(n + nCols2, n + p_alpha[m] - 1 + nCols2)) = beta_alpha[m].t();
-          keep_alpha(save_idx, arma::span(n + p_alpha[m] + nCols2, n + p_alpha[m] + 2 + nCols2)) = hp.col(m).t();
-          nCols2 += n + p_alpha[m] + 3;
+          keep_alpha(save_idx, arma::span(n + p_alpha[m] + nCols2, n + p_alpha[m] + 3 + nCols2)) = hp.col(m).t();
+          nCols2 += n + p_alpha[m] + 4;
         }
       }
       ++save_idx;

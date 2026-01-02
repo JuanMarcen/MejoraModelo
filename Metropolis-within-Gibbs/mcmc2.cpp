@@ -11,7 +11,9 @@ Rcpp::List spQuantileRcpp(
     const arma::mat& X,   //design matrix Nxp
     const arma::mat& V,   // spatial effects Nxr
     const std::vector<arma::mat>& X_alpha, //list of matrix Nxp_m
-    const arma::mat& dist, //distances between stations nxn 
+    const arma::mat& dist, //distances between stations nxn
+    const arma::vec& dist_coast, // nx1
+    const arma::mat& dist_coast_points, //nxn
     const arma::vec& M,    // prior values
     const arma::mat& P,
     const std::vector<arma::vec>& M_beta_alpha,
@@ -38,12 +40,8 @@ Rcpp::List spQuantileRcpp(
     const int nSims,      // MCMC numbers
     const int nThin,
     const int nBurnin,
-    const int nReport,
-    //const bool parallel,  // parallel
-    //const int nThreads
-    // ADD NEW DISTANCES
-    const arma::vec& dist_coast, // nx1
-    const arma::mat& dist_coast_points //nxn
+    const int nReport
+    
 ) {
   
   // missing index (SAME)
@@ -145,10 +143,10 @@ Rcpp::List spQuantileRcpp(
   arma::vec ldecay = log(hp.row(1).t());
   double varsigma_aux;
   double lvarsigma_aux = 0;
-  arma::vec lvarsigma = log(hp.row(3).t());
+  arma::vec lvarsigma = log(hp.row(2).t());
   double varphi_aux;
   double lvarphi_aux = 0;
-  arma::vec lvarphi = log(hp.row(4).t());
+  arma::vec lvarphi = log(hp.row(3).t());
   // the following will be overwritten
   arma::mat R_aux(n, n);
   double Rlogdet_aux;

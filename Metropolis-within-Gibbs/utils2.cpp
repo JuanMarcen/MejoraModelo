@@ -1,4 +1,4 @@
-#include "utils.h"
+#include "utils2.h"
 
 // [[Rcpp::plugins(openmp)]]
 // [[Rcpp::depends(RcppArmadillo)]]
@@ -86,3 +86,25 @@ arma::vec rig(
 }
 
 
+// [[Rcpp::export]]
+arma::mat inv_covariance_matrix(
+  const double precision, //hp(0, m)
+  const double decay, //hp(1, m)
+  const double varsigma, //hp(2, m)
+  const double varphi, //hp(3, m)
+  const arma::mat& dmat,
+  const arma::vec& dvec,
+  const arma::mat& dmatc
+){
+  // new definition of the covariance matrices
+  arma::vec expdc = exp(- varsigma* dvec); //nx1
+  arma::mat Mcoast = exp(- varphi * dmatc); //nxn
+  // column multiplication
+  Mcoast.each_row() %= expdc.t();
+  // row multiplication
+  Mcoast.each_col() %= expdc;
+
+  arma::mat R = arma::inv_sympd(1.0 / precision * exp(- decay * dmat) + Mcoast);
+
+  return R;
+}

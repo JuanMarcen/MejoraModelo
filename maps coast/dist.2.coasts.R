@@ -80,6 +80,44 @@ if(nrow(med_coastline_2062) == 0) {
   stop("La intersección devolvió 0 líneas de costa mediterránea. Ajusta el med_bbox.")
 }
 
+# DEFINITION 2
+med_poly <- st_sfc(
+  st_polygon(list(matrix(
+    c(
+      -5.585162405175785, 35.93925648881908,
+      0.7694599948747527, 37.05530764678005,
+      1.1649678073747527, 40.04456280698777,
+      4.548756869874753, 41.91875057870956,
+     3.2466502058274216, 42.46183953068916,
+      1.906168827119541, 42.59447052504181,
+     -0.4760705045471014, 41.914922391934574,
+      -4.519039254547101, 39.245413417434705,
+     -5.585162405175785, 35.93925648881908
+    ),
+    ncol = 2,
+    byrow = TRUE
+  ))),
+  crs = 4326
+)
+
+# Full world coastline
+coastline_world <- ne_coastline(scale = "large", returnclass = "sf")
+
+# Transform to working CRS
+coastline_2062 <- st_transform(coastline_world, 2062)
+med_coastline_2062 <- st_transform(med_poly, 2062)
+
+med_coastline_2062 <- st_intersection(coastline_2062, med_coastline_2062)
+
+# Cast geometry to LINESTRING
+med_coastline_2062 <- st_cast(med_coastline_2062, "LINESTRING", warn = FALSE)
+
+# Check
+if (nrow(med_coastline_2062) == 0) {
+  stop("The intersection returned 0 coastline segments.")
+}
+
+
 # ---------------------------
 # DISTANCES (km)
 # ---------------------------
@@ -160,6 +198,41 @@ if(nrow(med_coastline_2062) == 0) {
   stop("La intersección devolvió 0 líneas de costa mediterránea. Ajusta el med_bbox.")
 }
 
+# DEFINITION 2 (ANTLANTIC COAST)
+cant_poly <- st_sfc(
+  st_polygon(list(matrix(
+    c(
+      -5.9587733947874355, 39.0034389187482,
+        -1.1281003938232703, 43.24800793912893,
+        -1.7708005891357703, 43.39387635311883,
+        -2.5437567373064507, 44.02353016467899,
+        -9.79473329980645, 44.46426631165177,
+        -10.159808655475588, 36.98942985231237,
+      -5.585162405175785, 35.93925648881908,
+      -5.9587733947874355, 39.0034389187482
+    ),
+    ncol = 2,
+    byrow = TRUE
+  ))),
+  crs = 4326
+)
+
+# Full world coastline
+coastline_world <- ne_coastline(scale = "large", returnclass = "sf")
+
+# Transform to working CRS
+coastline_2062 <- st_transform(coastline_world, 2062)
+cant_coastline_2062 <- st_transform(cant_poly, 2062)
+
+cant_coastline_2062 <- st_intersection(coastline_2062, cant_coastline_2062)
+
+# Cast geometry to LINESTRING
+cant_coastline_2062 <- st_cast(cant_coastline_2062, "LINESTRING", warn = FALSE)
+
+# Check
+if (nrow(cant_coastline_2062) == 0) {
+  stop("The intersection returned 0 coastline segments.")
+}
 # ---------------------------
 # DISTANCES (km)
 # ---------------------------
@@ -182,7 +255,7 @@ g2 <- ggplot(data = background) +
   geom_sf(fill = "antiquewhite") +
   xlab("Longitude") + 
   ylab("Latitude") + 
-  ggtitle("Distance to Mediterranean coast (km)") +
+  ggtitle("Distance to Atlantic coast (km)") +
   theme(panel.background = element_rect(fill = "aliceblue"),
         axis.text.x=element_text(size = 6),
         axis.text.y=element_text(size = 6, angle = 90),

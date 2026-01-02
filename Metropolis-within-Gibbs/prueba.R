@@ -1,97 +1,168 @@
+# documento de pruebas para mis funciones modificadas
 rm(list = ls())
-library(Rcpp)
-library(RcppArmadillo)
-sourceCpp("Metropolis-within-Gibbs/mcmc_utils.cpp")
+tau <- 0.5
 
-# simulated data
-set.seed(123)
+library(qs)
+df <- qread('df_jun_ag.qs')
+stations <- readRDS('stations.rds')
 
-n  <- 10
-T  <- 5
-N  <- n * T
-p  <- 2
+Y <- df$Y
+X <- matrix(0, nrow = length(Y), ncol = 0)
+V <- cbind(1, df$s.1, df$c.1, df$g300, df$g500, df$g700)
 
-coords <- matrix(runif(2*n), n, 2)
-Dland  <- as.matrix(dist(coords))
-
-X <- array(rnorm(N * p), dim = c(N, p))
-Y <- rnorm(N)
-
-Z <- cbind(1, coords)   # intercept + spatial covariates
-
-set.seed(123)
-
-n  <- 10
-T  <- 5
-N  <- n * T
-p  <- 2
-
-coords <- matrix(runif(2*n), n, 2)
-Dland  <- as.matrix(dist(coords))
-
-X <- array(rnorm(N * p), dim = c(N, p))
-Y <- rnorm(N)
-
-Z <- cbind(1, coords)   # intercept + spatial covariates
-
-
-#algorithm
-#initialization 
-beta  <- rnorm(n)
-gamma <- rnorm(ncol(Z))
-xi    <- rexp(N)
-sigma <- 1
-
-sigma2_k <- 1
-phi_k   <- 1
-vars_k  <- 1
-varphi_k <- 1
-
-
-niter <- 1000
-store_beta <- matrix(NA, niter, n)
-
-for (it in 1:niter) {
-  
-  ## ---- 1. xi | ...
-  R <- Y - X[,1] * beta[rep(1:n, each = T)]
-  for (i in 1:N) {
-    # aquí usarías rgig; lo dejamos aproximado
-    xi[i] <- 1 / rgamma(1, 1, 1)
-  }
-  
-  ## ---- 2. sigma | ...
-  shape <- 1.5 * N + 1
-  rate  <- sum(xi) + sum((R - xi)^2 / xi)
-  sigma <- 1 / rgamma(1, shape, rate)
-  
-  ## ---- 3. gamma | beta
-  Ek <- exp_cov(Dland, sigma2_k, phi_k)
-  Vk <- solve(t(Z) %*% solve(Ek) %*% Z + diag(ncol(Z)))
-  mk <- Vk %*% t(Z) %*% solve(Ek) %*% beta
-  gamma <- as.vector(mvtnorm::rmvnorm(1, mk, Vk))
-  
-  ## ---- 4. beta | rest
-  Vk_beta <- solve(diag(N) + solve(Ek))
-  mk_beta <- Vk_beta %*% (X[,1] * Y + solve(Ek) %*% Z %*% gamma)
-  beta <- as.vector(mvtnorm::rmvnorm(1, mk_beta, Vk_beta))
-  
-  ## ---- 5. MH: log(phi_k)
-  logphi_prop <- log(phi_k) + rnorm(1, 0, 0.1)
-  phi_prop <- exp(logphi_prop)
-  
-  Ek_prop <- exp_cov(Dland, sigma2_k, phi_prop)
-  
-  logpost_prop <- log_dmvnorm(beta, Z %*% gamma, Ek_prop) +
-    dgamma(phi_prop, 2, 2, log = TRUE)
-  
-  logpost_curr <- log_dmvnorm(beta, Z %*% gamma, Ek) +
-    dgamma(phi_k, 2, 2, log = TRUE)
-  
-  if (log(runif(1)) < logpost_prop - logpost_curr) {
-    phi_k <- phi_prop
-    Ek <- Ek_prop
-  }
-  
-  store_beta[it, ] <- beta
+# X_alpha
+aux.vars <- c('elev', 'dist')
+X_alpha <- list()
+for (i in 1:ncol(V)){
+  X_alpha[[i]] <- cbind(1, unique(df$elev), unique(df$dist))
 }
+
+dist <- readRDS('maps coast/dist.matrix.rds')
+
+#priors
+M <- matrix(0, nrow = 0, ncol = 1)
+P <- matrix(0, nrow = 0, ncol = 0)
+
+M_beta_alpha <- list()
+P_beta_alpha <- list()
+for (i in 1:length(X_alpha)){
+  M_beta_alpha[[i]] <- rep(0, 3)
+  P_beta_alpha[[i]] <- 0.0001 * diag(3)
+}
+
+da <- 38
+db <- 7400
+ga <- 0.1
+gb <- 0.1
+na <- 0.1
+nb <- 0.1
+
+# initial
+beta <- matrix(0, nrow = 0, ncol = 1)
+alpha <- matrix(0.1, nrow = nrow(stations), ncol = ncol(V))
+prec <- 1
+
+hp <- matrix(0, nrow = 4, ncol = ncol(V))
+hp[1, ] <- 1 #precision
+hp[2, ] <- 3/600 #decay
+hp[3, ] <- 0.1 #varsigma
+hp[4, ] <- 0.1 # varphi
+
+beta_alpha <- list()
+for (i in 1:length(X_alpha)){
+  beta_alpha[[i]] <- rep(0.1, times = ncol(X_alpha[[i]]))
+}
+
+# more constants 
+N <- nrow(df)
+n <- nrow(stations)
+p <- 0
+r <- ncol(V)
+
+p_alpha <- unlist(lapply(X_alpha, ncol))
+s <- rep(0:39, each = 5888)
+
+nSims <- 5000
+nThin <- 5
+nBurnin <- 5000
+nReport <- 200
+
+#more distances
+dist_coast <- readRDS('maps coast/dist.vec.rds')
+dist_coast_points <- readRDS('maps coast/dist.coast.points2.rds')
+
+
+Rcpp::sourceCpp("Metropolis-within-Gibbs/mcmc3.cpp")
+
+#try my mcmc function function
+basura <- inv_covariance_matrix(hp[1,1], hp[2,1], hp[3,1], hp[4,1], dist, dist_coast, dist_coast_points)
+class(basura)
+dim(basura)
+
+repeat {
+  basura <- try(spQuantileRcpp(
+    tau = tau,
+    Y = Y,
+    X = X,
+    V = V,
+    X_alpha = X_alpha,
+    dist = dist,
+    dist_coast = dist_coast,
+    dist_coast_point = dist_coast_points,
+    M = M,
+    P = P,
+    M_beta_alpha = M_beta_alpha,
+    P_beta_alpha = P_beta_alpha,
+    da = da,
+    db = db,
+    ga = ga,
+    gb = gb,
+    na = na, 
+    nb = nb,
+    beta = beta,
+    alpha = alpha,
+    prec = prec,
+    hp = hp,
+    beta_alpha = beta_alpha,
+    N = N,
+    n = n,
+    p = p,
+    r = r,
+    p_alpha = p_alpha,
+    nSims = nSims,
+    nThin = nThin,
+    nBurnin = nBurnin,
+    nReport = nReport,
+    s = s
+  ),
+  silent = TRUE
+  )
+  
+  
+  # Si NO dio error → salimos del bucle
+  if (!inherits(basura, "try-error")) {
+    return(basura)
+  }
+  
+  message("⚠️  Error en spTm() → reintentando...")
+  
+  # Opcional: pequeña pausa para no saturar la CPU
+  Sys.sleep(0.5)
+}
+
+basura <-spQuantileRcpp(
+  tau = tau,
+  Y = Y,
+  X = X,
+  V = V,
+  X_alpha = X_alpha,
+  dist = dist,
+  dist_coast = dist_coast,
+  dist_coast_point = dist_coast_points,
+  M = M,
+  P = P,
+  M_beta_alpha = M_beta_alpha,
+  P_beta_alpha = P_beta_alpha,
+  da = da,
+  db = db,
+  ga = ga,
+  gb = gb,
+  na = na, 
+  nb = nb,
+  beta = beta,
+  alpha = alpha,
+  prec = prec,
+  hp = hp,
+  beta_alpha = beta_alpha,
+  N = N,
+  n = n,
+  p = p,
+  r = r,
+  p_alpha = p_alpha,
+  nSims = nSims,
+  nThin = nThin,
+  nBurnin = nBurnin,
+  nReport = nReport,
+  s = s)
+
+plot(basura$process[, 100], type = 'l')
