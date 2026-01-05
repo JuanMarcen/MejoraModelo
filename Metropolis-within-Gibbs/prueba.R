@@ -32,8 +32,8 @@ for (i in 1:length(X_alpha)){
 
 da <- 38
 db <- 7400
-ga <- 0.1
-gb <- 0.1
+ga <- 2
+gb <- 1
 na <- 0.1
 nb <- 0.1
 
@@ -42,11 +42,12 @@ beta <- matrix(0, nrow = 0, ncol = 1)
 alpha <- matrix(0.1, nrow = nrow(stations), ncol = ncol(V))
 prec <- 1
 
-hp <- matrix(0, nrow = 4, ncol = ncol(V))
+hp <- matrix(0, nrow = 5, ncol = ncol(V))
 hp[1, ] <- 1 #precision
 hp[2, ] <- 3/600 #decay
-hp[3, ] <- 0.1 #varsigma
-hp[4, ] <- 0.1 # varphi
+hp[3, ] <- 1 #varsigma
+hp[4, ] <- 1 # varphi
+hp[5, ] <- 1
 
 beta_alpha <- list()
 for (i in 1:length(X_alpha)){
@@ -62,10 +63,10 @@ r <- ncol(V)
 p_alpha <- unlist(lapply(X_alpha, ncol))
 s <- rep(0:39, each = 5888)
 
-nSims <- 5000
-nThin <- 5
-nBurnin <- 5000
-nReport <- 200
+nSims <- 1000
+nThin <- 1
+nBurnin <- 1000
+nReport <- 100
 
 #more distances
 dist_coast <- readRDS('maps coast/dist.vec.rds')
@@ -165,4 +166,9 @@ basura <-spQuantileRcpp(
   nReport = nReport,
   s = s)
 
-plot(basura$process[, 100], type = 'l')
+plot(basura$process[, 44], type = 'l') 
+plot(basura$process[, 45], type = 'l')
+plot(basura$process[, 46], type = 'l')
+plot(basura$process[, 47], type = 'l')
+plot(basura$process[, 48], type = 'l')
+plot(basura$params[, 1])

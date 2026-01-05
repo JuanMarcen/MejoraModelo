@@ -376,3 +376,80 @@ g3 <- ggplot(background) +
 ggsave('graphs/maps/points.med.cant.coast.pdf',
        g3, height = 8, width = 8)
 
+
+# -----------------------------------
+# PARAMETRIZATION r(s)
+# -----------------------------------
+# mediterranean coast
+med_coast_line <- st_line_merge(med_coast_union)
+med_coast_length <- st_length(med_coast_line)
+med_coast_coords <- st_coordinates(med_coast_line)[, 1:2]
+med_dr <- sqrt(
+  diff(med_coast_coords[,1])^2 +
+    diff(med_coast_coords[,2])^2
+)
+
+med_r_coast <- c(0, cumsum(med_dr))
+med_coast_proj <- st_coordinates(med_nearest_points_coast)
+
+med_nearest_vertex <- apply(med_coast_proj, 1, function(p) {
+  which.min(
+    (med_coast_coords[,1] - p[1])^2 +
+      (med_coast_coords[,2] - p[2])^2
+  )
+})
+
+stations$med_r <- med_r_coast[med_nearest_vertex] / 1000  # km
+
+#atlantic/cantabric
+cant_coast_line <- st_line_merge(cant_coast_union)
+cant_coast_length <- st_length(cant_coast_line)
+cant_coast_coords <- st_coordinates(cant_coast_line)[, 1:2]
+cant_dr <- sqrt(
+  diff(cant_coast_coords[,1])^2 +
+    diff(cant_coast_coords[,2])^2
+)
+
+cant_r_coast <- c(0, cumsum(cant_dr))
+cant_coast_proj <- st_coordinates(cant_nearest_points_coast)
+
+cant_nearest_vertex <- apply(cant_coast_proj, 1, function(p) {
+  which.min(
+    (cant_coast_coords[,1] - p[1])^2 +
+      (cant_coast_coords[,2] - p[2])^2
+  )
+})
+
+stations$cant_r <- cant_r_coast[cant_nearest_vertex] / 1000  # km
+
+# matrix of distances
+stations.aux <- as.data.frame(stations)
+dist.coast.points.med.cant <- as.matrix(dist(stations.aux[, c('med_r', 'cant_r')], method = 'euclidean',
+                                   diag = T, upper = T)) 
+saveRDS(dist.coast.points.med.cant, 'maps coast/dist.coast.pointsmed.cant.rds')
+dist.coast.points.med <- abs(outer(stations$med_r, stations$med_r, '-'))
+dist.coast.points.cant <- abs(outer(stations$cant_r, stations$cant_r, '-'))
+saveRDS(dist.coast.points2, 'maps coast/dist.coast.points2.rds')
+
+# plot to check if done correctly
+ggplot(background) +
+  geom_sf(fill = "antiquewhite") +
+  geom_sf(data = cant_coastline_2062, color = "blue") +
+  
+  # estaciones
+  geom_sf(data = stations, aes(color = cant_r), size = 2) +
+  
+  # puntos de la costa seleccionados
+  geom_sf(
+    data = cant_nearest_points_coast,
+    color = "black",
+    shape = 17,
+    size = 2,
+    stroke = 1
+  ) +
+  
+  scale_color_viridis_c(name = "r(s) [km]") +
+  coord_sf(
+    xlim = st_coordinates(limits)[,1],
+    ylim = st_coordinates(limits)[,2]
+  )
