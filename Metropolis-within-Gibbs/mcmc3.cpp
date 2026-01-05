@@ -22,6 +22,8 @@ Rcpp::List spQuantileRcpp(
     const double db,    // add priors resto hp
     const double ga,
     const double gb,
+    const double ra,
+    const double rb,
     const double na,    
     const double nb,    
     arma::vec beta,        
@@ -286,9 +288,9 @@ Rcpp::List spQuantileRcpp(
         vtRv_aux = arma::as_scalar(vn.t() * R_aux * vn);
         ALPHA = 
           (Rlogdet_aux - vtRv_aux) / 2 + 
-          ga * lvarphi_aux - gb * varphi_aux - 
+          ra * lvarphi_aux - rb * varphi_aux - 
           ((Rlogdet(m) - vtRv) / 2 +
-          ga * lvarphi(m) - gb * hp(3, m));
+          ra * lvarphi(m) - rb * hp(3, m));
         if (log(R::runif(0, 1)) < ALPHA) {
           ++accept(3, m);
           hp(3, m) = varphi_aux;

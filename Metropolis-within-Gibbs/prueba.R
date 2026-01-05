@@ -32,8 +32,10 @@ for (i in 1:length(X_alpha)){
 
 da <- 38
 db <- 7400
-ga <- 2
-gb <- 1
+ga <- 0.5
+gb <- 0.5
+ra <- 83
+rb <- 24600
 na <- 0.1
 nb <- 0.1
 
@@ -46,7 +48,7 @@ hp <- matrix(0, nrow = 5, ncol = ncol(V))
 hp[1, ] <- 1 #precision
 hp[2, ] <- 3/600 #decay
 hp[3, ] <- 1 #varsigma
-hp[4, ] <- 1 # varphi
+hp[4, ] <- 3/900 # varphi
 hp[5, ] <- 1
 
 beta_alpha <- list()
@@ -148,6 +150,8 @@ basura <-spQuantileRcpp(
   db = db,
   ga = ga,
   gb = gb,
+  ra = ra,
+  rb = rb,
   na = na, 
   nb = nb,
   beta = beta,
@@ -166,9 +170,11 @@ basura <-spQuantileRcpp(
   nReport = nReport,
   s = s)
 
-plot(basura$process[, 44], type = 'l') 
-plot(basura$process[, 45], type = 'l')
-plot(basura$process[, 46], type = 'l')
-plot(basura$process[, 47], type = 'l')
-plot(basura$process[, 48], type = 'l')
-plot(basura$params[, 1])
+plot(basura$process[, 44], type = 'l') #1/simga_k^2
+plot(basura$process[, 45], type = 'l') # decay
+plot(basura$process[, 46], type = 'l') # varsigma
+plot(basura$process[, 47], type = 'l') #varphi
+plot(basura$process[, 48], type = 'l') # prec.coast
+plot(basura$params[, 1], type = 'l')
+
+plot(basura$process[, 10], type = 'l')
