@@ -3,7 +3,7 @@ rm(list = ls())
 tau <- 0.5
 
 library(qs)
-df <- qread('df_jun_ag.qs')
+df <- qread('C:/Users/PC/Desktop/Juan/df_jun_ag.qs')
 stations <- readRDS('stations.rds')
 
 Y <- df$Y
@@ -65,9 +65,9 @@ r <- ncol(V)
 p_alpha <- unlist(lapply(X_alpha, ncol))
 s <- rep(0:39, each = 5888)
 
-nSims <- 1000
-nThin <- 1
-nBurnin <- 1000
+nSims <- 10000
+nThin <- 10
+nBurnin <- 10000
 nReport <- 100
 
 #more distances
@@ -186,18 +186,24 @@ basura <-spQuantileRcpp(
   s = s)
 
 # traceplots pf GP
-par(mfrow = c(4, 5))
+
 names <- c('intercept', 's.1', 'c.1', 'g300', 'g500', 'g700')
 for (j in 0:5){
+  filename <- paste0('Metropolis-within-Gibbs/trplots/trplots_', names[j +1], '.pdf')
+  pdf(filename, width = 12, height = 15)
+  par(mfrow = c(8, 5))
   for (i in 1:40){
     plot(basura$process[, i + j * 48], type = 'l', main = paste0(names[j + 1], '(', stations$NAME2[i], ')'))
   }
+  dev.off()
 }
 
 # tarceplots of parameters in GP
 
-par(mfrow = c(4,2))
 for (i in 0:5){
+  filename <- paste0('Metropolis-within-Gibbs/trplots/hp_trplots_', names[i +1], '.pdf')
+  pdf(filename, width = 7, height = 10)
+  par(mfrow = c(4,2))
   plot(basura$process[, 41 + i * 48], type = 'l', main = paste0('mu(intercept)_', names[i + 1]))
   plot(basura$process[, 42 + i * 48], type = 'l', main = paste0('mu(elev)_', names[i + 1]))
   plot(basura$process[, 43 + i * 48], type = 'l', main = paste0('mu(dist)_', names[i + 1]))
@@ -206,6 +212,7 @@ for (i in 0:5){
   plot(basura$process[, 46 + i * 48], type = 'l', main = paste0('varsgima_', names[i + 1])) # varsigma
   plot(basura$process[, 47 + i * 48], type = 'l', main = paste0('varphi_', names[i + 1])) #varphi
   plot(basura$process[, 48 + i * 48], type = 'l', main = paste0('prec.coast_', names[i + 1])) # prec.coast
+  dev.off()
 }
 
 
