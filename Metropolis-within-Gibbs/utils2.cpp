@@ -109,3 +109,28 @@ arma::mat inv_covariance_matrix(
 
   return R;
 }
+
+// [[Rcpp::export]]
+arma::mat inv_conv_covariance_matrix(
+    const double precision, //hp(0, m)
+    const double decay, //hp(1, m)
+    const double varsigma, //hp(2, m)
+    const double varphi, //hp(3, m)
+    const double cprec, //hp(4, m)
+    const arma::mat& dmat,
+    const arma::mat& dmatcoast,
+    const arma::mat& dr,
+    const double lencoast
+){
+  arma::mat expdc = exp(- varsigma * dmatcoast); //nxM
+  arma::mat covcoast = 1.0 / cprec * exp(- varphi * dr); //MxM
+  
+  double factor = lencoast * covcoast.n_rows;
+  double factor2 = factor * factor;
+  
+  arma::mat Mcoast = factor2 * expdc * covcoast * expdc.t(); //nxn
+  
+  arma::mat R = arma::inv_sympd(1.0 / precision * exp(- decay * dmat) + Mcoast);
+  
+  return R;
+}

@@ -25,5 +25,16 @@ arma::mat inv_covariance_matrix(
     const arma::vec& dvec,
     const arma::mat& dmatc
 );
+arma::mat inv_conv_covariance_matrix(
+    const double precision, 
+    const double decay, 
+    const double varsigma, 
+    const double varphi, 
+    const double cprec, 
+    const arma::mat& dmat,
+    const arma::mat& dmatcoast,
+    const arma::mat& dr,
+    const double lencoast
+);
 
 #endif

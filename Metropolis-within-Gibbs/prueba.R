@@ -32,8 +32,8 @@ for (i in 1:length(X_alpha)){
 
 da <- 38
 db <- 7400
-ga <- 0.5
-gb <- 0.5
+ga <- 2
+gb <- 1
 ra <- 83
 rb <- 24600
 na <- 0.1
@@ -65,15 +65,18 @@ r <- ncol(V)
 p_alpha <- unlist(lapply(X_alpha, ncol))
 s <- rep(0:39, each = 5888)
 
-nSims <- 1000
-nThin <- 1
-nBurnin <- 1000
+nSims <- 10000
+nThin <- 10
+nBurnin <- 10000
 nReport <- 100
 
 #more distances
 dist_coast <- readRDS('maps coast/dist.vec.rds')
 dist_coast_points <- readRDS('maps coast/dist.coast.points2.rds')
 
+dmatcoast_conv <- readRDS('maps coast/phimat.rds')
+drmat_conv <- readRDS('maps coast/dr.rds')
+lencoast_conv <- drmat_conv[1, 200]
 
 Rcpp::sourceCpp("Metropolis-within-Gibbs/mcmc3.cpp")
 
@@ -81,6 +84,9 @@ Rcpp::sourceCpp("Metropolis-within-Gibbs/mcmc3.cpp")
 basura <- inv_covariance_matrix(hp[1,1], hp[2,1], hp[3,1], hp[4,1], dist, dist_coast, dist_coast_points)
 class(basura)
 dim(basura)
+
+basura <- inv_conv_covariance_matrix(hp[1,1], hp[2,1], hp[3,1], hp[4,1], hp[5,1], 
+                                     dist, dmatcoast_conv, drmat_conv, lencoast_conv)
 
 repeat {
   basura <- try(spQuantileRcpp(
@@ -100,6 +106,8 @@ repeat {
     db = db,
     ga = ga,
     gb = gb,
+    ra = ra,
+    rb = rb,
     na = na, 
     nb = nb,
     beta = beta,
@@ -177,4 +185,4 @@ plot(basura$process[, 47], type = 'l') #varphi
 plot(basura$process[, 48], type = 'l') # prec.coast
 plot(basura$params[, 1], type = 'l')
 
-plot(basura$process[, 10], type = 'l')
+plot(basura$process[, 34], type = 'l')

@@ -126,7 +126,7 @@ coastline_2062 <- st_transform(coastline_world, 2062)
 iberian_poly_2062 <- st_transform(iberian_poly_4326, 2062)
 
 iberian_coast_2062 <- st_intersection(coastline_2062, iberian_poly_2062)
-
+iberian_coast_2062 <- iberian_coast_2062[1, ]
 # Cast geometry to LINESTRING
 iberian_coast_2062 <- st_cast(iberian_coast_2062, "LINESTRING", warn = FALSE)
 
@@ -261,15 +261,15 @@ ggsave('graphs/maps/points.coast.pdf',
 # PARAMETRIZATION r(s)
 # -----------------------------------
 
-coast_line <- st_line_merge(coast_union)
-coast_length <- st_length(coast_line)
-coast_coords <- st_coordinates(coast_line)[, 1:2]
+#coast_line <- st_line_merge(coast_union)
+coast_coords <- st_coordinates(coast_union)[, 1:2]
 dr <- sqrt(
   diff(coast_coords[,1])^2 +
     diff(coast_coords[,2])^2
 )
 
 r_coast <- c(0, cumsum(dr))
+coast_length_km <- round(r_coast[length(r_coast)]/1000, 3)
 coast_proj <- st_coordinates(nearest_points_coast)
 
 nearest_vertex <- apply(coast_proj, 1, function(p) {
@@ -297,13 +297,38 @@ ggplot(background) +
   geom_sf(
     data = nearest_points_coast,
     color = "black",
-    shape = 4,
-    size = 3,
-    stroke = 1
-  ) +
+    shape = 17,
+    size = 5
+  ) + 
+  geom_point(aes(x = X, y = Y), data = coast_coords[nearest_vertex, ],
+             color = 'red',
+             size = 5,
+             shape = 17) +
   
   scale_color_viridis_c(name = "r(s) [km]") +
   coord_sf(
     xlim = st_coordinates(limits)[,1],
     ylim = st_coordinates(limits)[,2]
   )
+
+
+
+# PARAM in 200 NODES
+plot(coast_union)
+points(st_coordinates(coast_union), pch = 19, cex = 0.25)
+coast_line <- coast_union
+s <- seq(0, 1, length.out = 200)
+coast_nodes <- st_line_sample(coast_line, sample = s)
+points(st_coordinates(coast_nodes), col = 'red', pch = 19)
+
+coastlen <- st_length(coast_line)
+r <- coastlen * s
+
+# matrices for MCMC
+coast_points <- st_cast(coast_nodes, "POINT")
+phimat <- round(units::drop_units(st_distance(stations$geometry, coast_points)/1000), 3)
+saveRDS(phimat, 'maps coast/phimat.rds')
+
+#ri - rj
+dr <- units::drop_units(abs(outer(r/1000, r/1000, '-')))
+saveRDS(dr, 'maps coast/dr.rds')

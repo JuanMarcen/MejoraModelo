@@ -14,6 +14,9 @@ Rcpp::List spQuantileRcpp(
     const arma::mat& dist, 
     const arma::vec& dist_coast, //new
     const arma::mat& dist_coast_points, //new 
+    const arma::mat& dmatcoast_conv, //convolution
+    const arma::mat& drmat_conv,
+    const double lencoast_conv,
     const arma::vec& M,    
     const arma::mat& P,
     const std::vector<arma::vec>& M_beta_alpha,
