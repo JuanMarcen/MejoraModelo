@@ -115,8 +115,10 @@ Rcpp::List spQuantileRcpp(
   
   //new function in utils 
   for (int m = 0; m < r; ++m){
-    R.slice(m) = inv_covariance_matrix(hp(0, m), hp(1, m), hp(2, m), hp(3, m), 
-            hp(4, m), dist, dist_coast, dist_coast_points);
+    //R.slice(m) = inv_covariance_matrix(hp(0, m), hp(1, m), hp(2, m), hp(3, m), 
+    //        hp(4, m), dist, dist_coast, dist_coast_points);
+    R.slice(m) = inv_conv_covariance_matrix(hp(0, m), hp(1, m), hp(2, m), hp(3, m), 
+            hp(4, m), dist, dmatcoast_conv, drmat_conv, lencoast_conv);
     Rlogdet(m) = arma::log_det_sympd(R.slice(m));
   }
   
@@ -217,8 +219,10 @@ Rcpp::List spQuantileRcpp(
         // decay
         ldecay_aux  = R::rnorm(ldecay(m), sd(1, m));
         decay_aux   = exp(ldecay_aux);
-        R_aux       = inv_covariance_matrix(hp(0, m), decay_aux, hp(2, m), hp(3, m),
-                                            hp(4, m), dist, dist_coast, dist_coast_points);
+        //R_aux       = inv_covariance_matrix(hp(0, m), decay_aux, hp(2, m), hp(3, m),
+        //                                    hp(4, m), dist, dist_coast, dist_coast_points);
+        R_aux = inv_conv_covariance_matrix(hp(0, m), decay_aux, hp(2, m), hp(3, m), 
+                        hp(4, m), dist, dmatcoast_conv, drmat_conv, lencoast_conv);
         Rlogdet_aux = arma::log_det_sympd(R_aux);
         vn       = alpha_m - Xb_alpha[m];
         vtRv_aux = arma::as_scalar(vn.t() * R_aux * vn);
@@ -240,8 +244,10 @@ Rcpp::List spQuantileRcpp(
         // precision
         lprecision_aux  = R::rnorm(lprecision(m), sd(0, m));
         precision_aux   = exp(lprecision_aux);
-        R_aux       = inv_covariance_matrix(precision_aux, hp(1, m), hp(2, m), hp(3, m),
-                                            hp(4, m), dist, dist_coast, dist_coast_points);
+        // R_aux       = inv_covariance_matrix(precision_aux, hp(1, m), hp(2, m), hp(3, m),
+        //                                     hp(4, m), dist, dist_coast, dist_coast_points);
+        R_aux = inv_conv_covariance_matrix(precision_aux, hp(1, m), hp(2, m), hp(3, m), 
+                        hp(4, m), dist, dmatcoast_conv, drmat_conv, lencoast_conv);
         Rlogdet_aux = arma::log_det_sympd(R_aux);
         vn       = alpha_m - Xb_alpha[m];
         vtRv_aux = arma::as_scalar(vn.t() * R_aux * vn);
@@ -262,8 +268,10 @@ Rcpp::List spQuantileRcpp(
         // varsigma
         lvarsigma_aux  = R::rnorm(lvarsigma(m), sd(2, m));
         varsigma_aux   = exp(lvarsigma_aux);
-        R_aux       = inv_covariance_matrix(hp(0, m), hp(1, m), varsigma_aux, hp(3, m),
-                                            hp(4, m), dist, dist_coast, dist_coast_points);
+        // R_aux       = inv_covariance_matrix(hp(0, m), hp(1, m), varsigma_aux, hp(3, m),
+        //                                     hp(4, m), dist, dist_coast, dist_coast_points);
+        R_aux = inv_conv_covariance_matrix(hp(0, m), hp(1, m), varsigma_aux, hp(3, m), 
+                        hp(4, m), dist, dmatcoast_conv, drmat_conv, lencoast_conv);
         Rlogdet_aux = arma::log_det_sympd(R_aux);
         vn       = alpha_m - Xb_alpha[m];
         vtRv_aux = arma::as_scalar(vn.t() * R_aux * vn);
@@ -284,8 +292,10 @@ Rcpp::List spQuantileRcpp(
         // varphi
         lvarphi_aux  = R::rnorm(lvarphi(m), sd(3, m));
         varphi_aux   = exp(lvarphi_aux);
-        R_aux       = inv_covariance_matrix(hp(0, m), hp(1, m), hp(2, m), varphi_aux,
-                                            hp(4, m), dist, dist_coast, dist_coast_points);
+        // R_aux       = inv_covariance_matrix(hp(0, m), hp(1, m), hp(2, m), varphi_aux,
+        //                                     hp(4, m), dist, dist_coast, dist_coast_points);
+        R_aux = inv_conv_covariance_matrix(hp(0, m), hp(1, m), hp(2, m), varphi_aux, 
+                        hp(4, m), dist, dmatcoast_conv, drmat_conv, lencoast_conv);
         Rlogdet_aux = arma::log_det_sympd(R_aux);
         vn       = alpha_m - Xb_alpha[m];
         vtRv_aux = arma::as_scalar(vn.t() * R_aux * vn);
@@ -306,8 +316,10 @@ Rcpp::List spQuantileRcpp(
         // cprec
         lcprec_aux  = R::rnorm(lcprec(m), sd(4, m));
         cprec_aux   = exp(lcprec_aux);
-        R_aux       = inv_covariance_matrix(hp(0, m), hp(1, m), hp(2, m), hp(3, m),
-                                            cprec_aux, dist, dist_coast, dist_coast_points);
+        // R_aux       = inv_covariance_matrix(hp(0, m), hp(1, m), hp(2, m), hp(3, m),
+        //                                     cprec_aux, dist, dist_coast, dist_coast_points);
+        R_aux = inv_conv_covariance_matrix(hp(0, m), hp(1, m), hp(2, m), hp(3, m), 
+                        cprec_aux, dist, dmatcoast_conv, drmat_conv, lencoast_conv);
         Rlogdet_aux = arma::log_det_sympd(R_aux);
         vn       = alpha_m - Xb_alpha[m];
         vtRv_aux = arma::as_scalar(vn.t() * R_aux * vn);

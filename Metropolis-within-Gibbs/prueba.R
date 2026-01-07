@@ -65,9 +65,9 @@ r <- ncol(V)
 p_alpha <- unlist(lapply(X_alpha, ncol))
 s <- rep(0:39, each = 5888)
 
-nSims <- 10000
-nThin <- 10
-nBurnin <- 10000
+nSims <- 1000
+nThin <- 1
+nBurnin <- 1000
 nReport <- 100
 
 #more distances
@@ -81,13 +81,14 @@ lencoast_conv <- drmat_conv[1, 200]
 Rcpp::sourceCpp("Metropolis-within-Gibbs/mcmc3.cpp")
 
 #try my mcmc function function
-basura <- inv_covariance_matrix(hp[1,1], hp[2,1], hp[3,1], hp[4,1], dist, dist_coast, dist_coast_points)
+basura <- inv_covariance_matrix(hp[1,1], hp[2,1], hp[3,1], hp[4,1], hp[5,1], dist, dist_coast, dist_coast_points)
 class(basura)
 dim(basura)
 
 basura <- inv_conv_covariance_matrix(hp[1,1], hp[2,1], hp[3,1], hp[4,1], hp[5,1], 
                                      dist, dmatcoast_conv, drmat_conv, lencoast_conv)
-
+class(basura)
+dim(basura)
 repeat {
   basura <- try(spQuantileRcpp(
     tau = tau,
@@ -98,6 +99,9 @@ repeat {
     dist = dist,
     dist_coast = dist_coast,
     dist_coast_point = dist_coast_points,
+    dmatcoast_conv = dmatcoast_conv,
+    drmat_conv = drmat_conv,
+    lencoast_conv = lencoast_conv,
     M = M,
     P = P,
     M_beta_alpha = M_beta_alpha,
@@ -150,6 +154,9 @@ basura <-spQuantileRcpp(
   dist = dist,
   dist_coast = dist_coast,
   dist_coast_point = dist_coast_points,
+  dmatcoast_conv = dmatcoast_conv,
+  drmat_conv = drmat_conv,
+  lencoast_conv = lencoast_conv,
   M = M,
   P = P,
   M_beta_alpha = M_beta_alpha,
@@ -178,11 +185,31 @@ basura <-spQuantileRcpp(
   nReport = nReport,
   s = s)
 
-plot(basura$process[, 44], type = 'l') #1/simga_k^2
-plot(basura$process[, 45], type = 'l') # decay
-plot(basura$process[, 46], type = 'l') # varsigma
-plot(basura$process[, 47], type = 'l') #varphi
-plot(basura$process[, 48], type = 'l') # prec.coast
+# traceplots pf GP
+par(mfrow = c(4, 5))
+names <- c('intercept', 's.1', 'c.1', 'g300', 'g500', 'g700')
+for (j in 0:5){
+  for (i in 1:40){
+    plot(basura$process[, i + j * 48], type = 'l', main = paste0(names[j + 1], '(', stations$NAME2[i], ')'))
+  }
+}
+
+# tarceplots of parameters in GP
+
+par(mfrow = c(4,2))
+for (i in 0:5){
+  plot(basura$process[, 41 + i * 48], type = 'l', main = paste0('mu(intercept)_', names[i + 1]))
+  plot(basura$process[, 42 + i * 48], type = 'l', main = paste0('mu(elev)_', names[i + 1]))
+  plot(basura$process[, 43 + i * 48], type = 'l', main = paste0('mu(dist)_', names[i + 1]))
+  plot(basura$process[, 44 + i * 48], type = 'l', main = paste0('1/sigma_k^2_', names[i + 1])) #1/simga_k^2
+  plot(basura$process[, 45 + i * 48], type = 'l', main = paste0('decay_', names[i + 1])) # decay
+  plot(basura$process[, 46 + i * 48], type = 'l', main = paste0('varsgima_', names[i + 1])) # varsigma
+  plot(basura$process[, 47 + i * 48], type = 'l', main = paste0('varphi_', names[i + 1])) #varphi
+  plot(basura$process[, 48 + i * 48], type = 'l', main = paste0('prec.coast_', names[i + 1])) # prec.coast
+}
+
+
+
 plot(basura$params[, 1], type = 'l')
 
-plot(basura$process[, 34], type = 'l')
+plot(basura$process[, 50], type = 'l')
