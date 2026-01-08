@@ -65,10 +65,10 @@ r <- ncol(V)
 p_alpha <- unlist(lapply(X_alpha, ncol))
 s <- rep(0:39, each = 5888)
 
-nSims <- 10000
-nThin <- 10
-nBurnin <- 10000
-nReport <- 100
+nSims <- 100000
+nThin <- 100
+nBurnin <- 100000
+nReport <- 1000
 
 #more distances
 dist_coast <- readRDS('maps coast/dist.vec.rds')
