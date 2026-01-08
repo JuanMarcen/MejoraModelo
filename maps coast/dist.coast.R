@@ -332,3 +332,42 @@ saveRDS(phimat, 'maps coast/phimat.rds')
 #ri - rj
 dr <- units::drop_units(abs(outer(r/1000, r/1000, '-')))
 saveRDS(dr, 'maps coast/dr.rds')
+
+# -----------------------------------
+# GRID AND DISTNACES TO 200 nodes
+# -----------------------------------
+grid <- st_make_grid(spain, cellsize = 25000, what = "centers")
+grid <- st_intersection(grid, spain_coords)
+grid <- st_sf(geometry = grid)  # sf
+
+phimat.grid <- round(units::drop_units(st_distance(grid$geometry, coast_points)/1000), 3)
+saveRDS(phimat.grid, 'maps coast/phimat.grid.rds')
+
+#quick check
+grid$dist_coast_10 <- phimat.grid[, 10]
+ggplot(background) +
+  geom_sf(fill = "antiquewhite") + 
+  
+  # estaciones
+  geom_sf(data = stations, size = 2) +
+  geom_sf(data = coast_points[10], col = 'blue') + 
+  geom_sf(data = grid, shape = 15, aes(color = dist_coast_10)) +
+  scale_color_viridis_c() +
+  coord_sf(
+    xlim = st_coordinates(limits)[,1],
+    ylim = st_coordinates(limits)[,2]
+  )
+
+
+# checks for future covariances matrices
+stations.basura <- rbind(grid[, 0], stations[, 0])
+phimat.basura <- round(units::drop_units(st_distance(stations.basura$geometry, coast_points)/1000), 3)
+
+K.coast <- exp(-0.003*dr)
+
+final <- phimat.basura %*% K.coast %*% t(phimat.basura)
+R21 <- final[791:830, 1:790]
+
+final2 <- phimat %*% K.coast %*% t(phimat.grid)
+
+all.equal(R21, final2)

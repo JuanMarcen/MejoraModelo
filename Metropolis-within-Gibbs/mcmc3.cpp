@@ -415,3 +415,50 @@ Rcpp::List spQuantileRcpp(
   }
 }
 
+// [[Rcpp::export]]
+arma::mat krigeBayesRcpp(
+    const arma::mat& w,
+    const arma::mat& hp,
+    const arma::mat& coords,
+    const arma::mat& newcoords) {
+  
+  int B  = w.n_rows;
+  int n0 = newcoords.n_rows;
+  
+  arma::mat out(B, n0);
+  
+  arma::mat d22 = dist_mat(coords, coords);
+  arma::mat d11 = dist_mat(newcoords, newcoords);
+  arma::mat d21 = dist_mat(coords, newcoords);
+  
+
+  
+  int n = coords.n_rows;
+  double mu, sigma, decay;
+  arma::mat R22(n,n), R11(n0,n0), R21(n,n0); 
+  arma::mat C(n0,n0), L(n0,n0), R12R22inv(n0,n); 
+  arma::vec wb(n), z(n0);
+  
+  for (int b = 0; b < B; ++b) {
+    mu    = hp(b,0);
+    sigma = hp(b,1);
+    decay = hp(b,2);
+    
+    wb = w.row(b).t();
+    R22 = arma::exp(-decay * d22);
+    R11 = arma::exp(-decay * d11);
+    R21 = arma::exp(-decay * d21);
+    
+    R12R22inv = arma::solve(R22, R21, arma::solve_opts::fast).t();
+    C = R11 - R12R22inv * R21;
+    L = arma::chol(C, "lower");
+    
+    z = arma::randn(n0);
+    
+    out.row(b) = (mu + R12R22inv * (wb - mu) + sigma * (L * z)).t();
+  }
+  return out;
+
+  
+  
+}
