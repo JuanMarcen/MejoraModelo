@@ -69,3 +69,4 @@ for (i in 1:40){
 # ---- 3. MODEL WITH GP (COASTAL EFFECT) ----
 
 # ---- 4. MODEL WITH GP (COASTAL CONVOLUTION) ----
+conv.q0.50.100k <- readRDS('conv.q0.50.100k.rds')
