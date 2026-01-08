@@ -57,6 +57,14 @@ mod_global$coefficients
 
 # ---- 2. MODEL WITH GP (NO COAST EFFECT) (M2) ----
 load('fullmodels.RData')
+load('M2.RData')
+
+par(mfrow = c(4,5))
+for (i in 1:40){
+  plot(final.chain.q0.50.M2[, paste0('beta6(s', i, ')')] + 
+         final.chain.q0.50.M2[, 'g700'], type = 'l',
+       main = stations$NAME2[i])
+}
 
 # ---- 3. MODEL WITH GP (COASTAL EFFECT) ----
 
