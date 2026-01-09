@@ -23,6 +23,9 @@ stations <- st_transform(
   2062
 )
 
+coords.stations <- round(st_coordinates(stations)/1000, 3)
+saveRDS(coords.stations, 'coords.stations.rds')
+
 dist.matrix <- units::drop_units(round(st_distance(stations)/1000, 3))
 saveRDS(dist.matrix, 'maps coast/dist.matrix.rds')
 # --- peninsular limits and grid ---
@@ -37,6 +40,8 @@ limits <- st_transform(
   ),
   2062
 )
+
+saveRDS(limits, 'limits.rds')
 
 # Spain
 spain <- ne_countries(scale = "large", country = "Spain", returnclass = "sf")
@@ -164,6 +169,8 @@ european_union <- c("Algeria", "Andorra", "France", "Gibraltar", "Morocco",
                     "Portugal", "Spain")
 european_union_map <- world_map %>% filter(name %in% european_union)
 background <- st_transform(european_union_map, 2062)
+
+saveRDS(background, 'background.rds')
 
 g <- ggplot(data = background) +
   geom_sf(fill = "antiquewhite") +
@@ -338,7 +345,10 @@ saveRDS(dr, 'maps coast/dr.rds')
 # -----------------------------------
 grid <- st_make_grid(spain, cellsize = 25000, what = "centers")
 grid <- st_intersection(grid, spain_coords)
+saveRDS(grid, 'grid.rds')
 grid <- st_sf(geometry = grid)  # sf
+
+
 
 phimat.grid <- round(units::drop_units(st_distance(grid$geometry, coast_points)/1000), 3)
 saveRDS(phimat.grid, 'maps coast/phimat.grid.rds')

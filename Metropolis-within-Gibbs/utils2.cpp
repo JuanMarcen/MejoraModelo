@@ -127,10 +127,77 @@ arma::mat inv_conv_covariance_matrix(
   
   double factor = lencoast * covcoast.n_rows;
   double factor2 = factor * factor;
-  
-  arma::mat Mcoast = factor2 * expdc * covcoast * expdc.t(); //nxn
+  // no multiplicar por factor
+  arma::mat Mcoast =  expdc * covcoast * expdc.t(); //nxn
   
   arma::mat R = arma::inv_sympd(1.0 / precision * exp(- decay * dmat) + Mcoast);
   
   return R;
+}
+
+// [[Rcpp::export]]
+arma::mat conv_covariance_matrix(
+    const double precision, //hp(0, m)
+    const double decay, //hp(1, m)
+    const double varsigma, //hp(2, m)
+    const double varphi, //hp(3, m)
+    const double cprec, //hp(4, m)
+    const arma::mat& dmat,
+    const arma::mat& dmatcoast,
+    const arma::mat& dr,
+    const double lencoast
+){
+  arma::mat expdc = exp(- varsigma * dmatcoast); //nxM
+  arma::mat covcoast = 1.0 / cprec * exp(- varphi * dr); //MxM
+  
+  double factor = lencoast * covcoast.n_rows;
+  double factor2 = factor * factor;
+  // no multiplicar por factor
+  arma::mat Mcoast =  expdc * covcoast * expdc.t(); //nxn
+  
+  arma::mat R = 1.0 / precision * exp(- decay * dmat) + Mcoast;
+  
+  return R;
+}
+
+// [[Rcpp::export]]
+arma::mat conv_covariance_matrix2(
+    const double precision, //hp(0, m)
+    const double decay, //hp(1, m)
+    const double varsigma, //hp(2, m)
+    const double varphi, //hp(3, m)
+    const double cprec, //hp(4, m)
+    const arma::mat& dmat,
+    const arma::mat& dmatcoast1,
+    const arma::mat& dmatcoast2,
+    const arma::mat& dr,
+    const double lencoast
+){
+  arma::mat expdc1 = exp(- varsigma * dmatcoast1); //nxM
+  arma::mat expdc2 = exp(- varsigma * dmatcoast2);
+  arma::mat covcoast = 1.0 / cprec * exp(- varphi * dr); //MxM
+  
+  double factor = lencoast * covcoast.n_rows;
+  double factor2 = factor * factor;
+  
+  // no multiplicar por factor
+  arma::mat Mcoast = expdc1 * covcoast * expdc2.t(); //nxn
+  
+  arma::mat R = 1.0 / precision * exp(- decay * dmat) + Mcoast;
+  
+  return R;
+}
+
+// [[Rcpp::export]]
+arma::mat dist_mat(const arma::mat& A, const arma::mat& B) {
+  int n1 = A.n_rows;
+  int n2 = B.n_rows;
+  arma::mat D(n1, n2);
+  
+  for (int i = 0; i < n1; ++i) {
+    for (int j = 0; j < n2; ++j) {
+      D(i,j) = arma::norm(A.row(i) - B.row(j));
+    }
+  }
+  return D;
 }

@@ -36,5 +36,29 @@ arma::mat inv_conv_covariance_matrix(
     const arma::mat& dr,
     const double lencoast
 );
+arma::mat conv_covariance_matrix(
+    const double precision, //hp(0, m)
+    const double decay, //hp(1, m)
+    const double varsigma, //hp(2, m)
+    const double varphi, //hp(3, m)
+    const double cprec, //hp(4, m)
+    const arma::mat& dmat,
+    const arma::mat& dmatcoast,
+    const arma::mat& dr,
+    const double lencoast
+);
+arma::mat conv_covariance_matrix2(
+    const double precision, //hp(0, m)
+    const double decay, //hp(1, m)
+    const double varsigma, //hp(2, m)
+    const double varphi, //hp(3, m)
+    const double cprec, //hp(4, m)
+    const arma::mat& dmat,
+    const arma::mat& dmatcoast1,
+    const arma::mat& dmatcoast2,
+    const arma::mat& dr,
+    const double lencoast
+);
+arma::mat dist_mat(const arma::mat& A, const arma::mat& B);
 
 #endif

@@ -3,7 +3,7 @@ rm(list = ls())
 tau <- 0.5
 
 library(qs)
-df <- qread('C:/Users/PC/Desktop/Juan/df_jun_ag.qs')
+df <- qread('df_jun_ag.qs')
 stations <- readRDS('stations.rds')
 
 Y <- df$Y
@@ -65,10 +65,10 @@ r <- ncol(V)
 p_alpha <- unlist(lapply(X_alpha, ncol))
 s <- rep(0:39, each = 5888)
 
-nSims <- 100000
-nThin <- 100
-nBurnin <- 100000
-nReport <- 1000
+nSims <- 1000
+nThin <- 1
+nBurnin <- 1000
+nReport <- 10
 
 #more distances
 dist_coast <- readRDS('maps coast/dist.vec.rds')
@@ -85,8 +85,10 @@ basura <- inv_covariance_matrix(hp[1,1], hp[2,1], hp[3,1], hp[4,1], hp[5,1], dis
 class(basura)
 dim(basura)
 
-basura <- inv_conv_covariance_matrix(hp[1,1], hp[2,1], hp[3,1], hp[4,1], hp[5,1], 
+a <- conv_covariance_matrix(hp[1,1], hp[2,1], hp[3,1], hp[4,1], hp[5,1], 
                                      dist, dmatcoast_conv, drmat_conv, lencoast_conv)
+dim(a)
+
 class(basura)
 dim(basura)
 repeat {
@@ -220,3 +222,103 @@ for (i in 0:5){
 plot(basura$params[, 1], type = 'l')
 
 plot(basura$process[, 50], type = 'l')
+
+
+# change of names
+
+# KRIGING AND MAP
+dmatcoast_conv2 <- readRDS('maps coast/phimat.grid.rds')
+newcoords <- readRDS('grid_km.rds')
+coords <- readRDS('coords.stations.rds')
+# substract mean of the GP
+
+w <- basura$process[, 1:40 + 0*48]
+Z <- X_alpha[[1]]
+w.def <- w - t(Z %*% t(basura$process[, 41:43 + 0*48]))
+
+basura2 <- krigeBayesRcpp(
+  #w = t(as.matrix(colMeans(w.def))),
+  w = w.def,
+  hp = basura$process[ , 44:48 + 0*48, drop = FALSE],
+  coords = coords,
+  newcoords = newcoords,
+  dr = drmat_conv,
+  dcoast = dmatcoast_conv,
+  newdcoast = dmatcoast_conv2,
+  lencoast = lencoast_conv
+)
+
+
+library(viridis)
+library(ggplot2)
+library(sf)
+limits <- readRDS('limits.rds')
+background <- readRDS('background.rds')
+grid <- readRDS('grid.rds')
+
+mu <- colMeans(basura2,na.rm=T)
+grid_coords <- cbind(st_coordinates(grid), mu = mu)
+grid_coords <- na.omit(grid_coords)
+grid <- st_sf(mu = round(as.vector(mu), 3), geometry = grid)
+ggplot(data = background) + 
+  geom_sf(fill = "antiquewhite") + 
+  xlab("Longitud (º)") + ylab("Latitud (º)") + ggtitle(bquote( .('intercept') * .(' (') * tau *.(' = ') *.(0.5) *.(')'))) +
+  theme(panel.background = element_rect(fill = "aliceblue"),
+        axis.text.x=element_text(size = 6),
+        axis.text.y=element_text(size = 6, angle = 90),
+        axis.title=element_text(size = 10, face = "bold")) + 
+  geom_tile(data = grid_coords, aes(X, Y, fill = mu)) +
+  geom_tile(data = grid, ggplot2::aes(x = st_coordinates(grid)[, 1], y = st_coordinates(grid)[, 2], fill = mu)) +
+  geom_sf(data = stations, aes(color = mu), shape = 21,        # forma con relleno y borde
+          color = "black",   # contorno
+          size = 3,
+          stroke = 1 )+
+  scale_fill_gradient2( low = scales::muted("blue"), mid = "white", high = scales::muted("red"),
+                        space = "Lab", midpoint = 0, limits = c(-5, 5), name = "Distance (km)") +
+  scale_color_gradient2( low = scales::muted("blue"), mid = "white", high = scales::muted("red"),
+                        space = "Lab", midpoint = 0, limits = c(-5, 5), name = "Distance (km)") +
+  
+  
+coord_sf(xlim = st_coordinates(limits)[, 1], ylim = st_coordinates(limits)[, 2])
+
+
+colMeans(w.def)
+
+stations$mu <- colMeans(w.def)
+
+ggplot(data = background) + 
+  geom_sf(fill = "antiquewhite") + 
+  xlab("Longitud (º)") + ylab("Latitud (º)") + ggtitle(bquote( .('var') * .(' (') * tau *.(' = ') *.(0.5) *.(')'))) +
+  theme(panel.background = element_rect(fill = "aliceblue"),
+        axis.text.x=element_text(size = 6),
+        axis.text.y=element_text(size = 6, angle = 90),
+        axis.title=element_text(size = 10, face = "bold")) + 
+  geom_sf(data = stations, aes(color = mu), size = 3)+
+  scale_color_viridis(name = '',
+                      option = 'viridis',
+                      direction = 1) +
+  coord_sf(xlim = st_coordinates(limits)[, 1], ylim = st_coordinates(limits)[, 2])
+
+
+which(mu > 5 | mu < -5)
+mu[which(mu > 5 | mu < -5)]
+
+plot(dmatcoast_conv2[673, ])
+min(dmatcoast_conv2[673, ])
+points(dmatcoast_conv2[790, ], col = 'red')
+min(dmatcoast_conv2[790, ])
+
+# forensic analyisis of errors
+hp <- basura$process[1 , 44:48 + 3*48, drop = FALSE]
+w <- w.def[1, , drop = FALSE]
+
+R22 <- conv_covariance_matrix(hp[1, 1], hp[1, 2], hp[1, 3], hp[1, 4], hp[1, 5],
+                              dist, dmatcoast_conv, drmat_conv, lencoast_conv)
+
+R11 <- conv_covariance_matrix(hp[1, 1], hp[1, 2], hp[1, 3], hp[1, 4], hp[1, 5],
+                              dist_mat(newcoords, newcoords), 
+                              dmatcoast_conv2, drmat_conv, lencoast_conv)
+
+plot(R11[673, ])
+max(R11[673, ])
+which.max(R11[673, ])
