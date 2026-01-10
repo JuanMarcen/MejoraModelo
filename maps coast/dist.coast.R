@@ -457,7 +457,7 @@ ggplot(background) +
   geom_sf(data = full_coastline_2062, color = "blue") +
   
   # estaciones
-  geom_sf(data = stations, aes(color = r), size = 2) +
+  geom_sf(data = grid, aes(color = r), size = 2) +
   
   # puntos de la costa seleccionados
   geom_sf(
