@@ -1,9 +1,10 @@
 # documento de pruebas para mis funciones modificadas
-rm(list = ls())
+rm(list = setdiff(ls(),c('basura', 'basura.coastal', 'basura.nofactor')))
 tau <- 0.5
 
 library(qs)
 df <- qread('df_jun_ag.qs')
+df <- qread('C:/Users/PC/Desktop/Juan/df_jun_ag.qs')
 stations <- readRDS('stations.rds')
 
 Y <- df$Y
