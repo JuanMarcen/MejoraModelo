@@ -72,7 +72,7 @@ iberian_boundary <- st_boundary(iberian_peninsula)
 # spain_boundary <- st_boundary(spain_peninsula)
 
 # Grid (centers 10x10 km) and intersection with peninsula
-grid <- st_make_grid(spain, cellsize = 10000, what = "centers")
+grid <- st_make_grid(spain, cellsize = 25000, what = "centers")
 grid <- st_intersection(grid, spain_coords)
 grid <- st_sf(geometry = grid)  # sf
 
@@ -151,7 +151,7 @@ dist_grid_to_coast <- st_distance(grid, full_coastline_2062)
 # Minimum distance
 min_dist_grid_m <- apply(as.matrix(dist_grid_to_coast), 1, min)
 grid$dist <- round(min_dist_grid_m / 1000, 3)
-
+saveRDS(grid$dist, 'maps coast/dist.vec.grid.rds')
 # stations dist
 dist_st_to_coast <- st_distance(stations$geometry, full_coastline_2062)
 min_dist_st_m <- apply(as.matrix(dist_st_to_coast), 1, min)
@@ -370,14 +370,110 @@ ggplot(background) +
 
 
 # checks for future covariances matrices
-stations.basura <- rbind(grid[, 0], stations[, 0])
-phimat.basura <- round(units::drop_units(st_distance(stations.basura$geometry, coast_points)/1000), 3)
+# stations.basura <- rbind(grid[, 0], stations[, 0])
+# phimat.basura <- round(units::drop_units(st_distance(stations.basura$geometry, coast_points)/1000), 3)
+# 
+# K.coast <- exp(-0.003*dr)
+# 
+# final <- phimat.basura %*% K.coast %*% t(phimat.basura)
+# R21 <- final[791:830, 1:790]
+# 
+# final2 <- phimat %*% K.coast %*% t(phimat.grid)
+# 
+# all.equal(R21, final2)
 
-K.coast <- exp(-0.003*dr)
 
-final <- phimat.basura %*% K.coast %*% t(phimat.basura)
-R21 <- final[791:830, 1:790]
+# -----------------------------------
+# NEAREST COAST POINTS PER GRID CELL AND PARAMETRIZATION
+# -----------------------------------
+nearest_lines <- st_nearest_points(
+  grid,
+  coast_union
+)
 
-final2 <- phimat %*% K.coast %*% t(phimat.grid)
+nearest_lines_sf <- st_sf(
+  id = seq_along(nearest_lines),
+  geometry = nearest_lines
+)
 
-all.equal(R21, final2)
+nearest_points_coast <- st_cast(
+  nearest_lines_sf,
+  "POINT"
+) %>%
+  group_by(id) %>%
+  slice(2) %>%
+  ungroup()
+
+ggplot(background) +
+  geom_sf(fill = "antiquewhite") +
+  geom_sf(
+    data = nearest_lines_sf,
+    color = "gray40",
+    size = 0.5
+  ) +
+  geom_sf(
+    data = nearest_points_coast,
+    color = "red",
+    size = 2
+  ) +
+  geom_sf(
+    data = grid,
+    color = "black",
+    size = 1.8
+  ) +
+  geom_sf(
+    data = full_coastline_2062,
+    color = "blue",
+    size = 0.5
+  ) +
+  coord_sf(
+    xlim = st_coordinates(limits)[, 1],
+    ylim = st_coordinates(limits)[, 2]
+  ) +
+  theme(
+    panel.background = element_rect(fill = "aliceblue")
+  ) +
+  ggtitle("Nearest coastal point for each station")
+
+#parametrization
+coast_proj <- st_coordinates(nearest_points_coast)
+
+nearest_vertex <- apply(coast_proj, 1, function(p) {
+  which.min(
+    (coast_coords[,1] - p[1])^2 +
+      (coast_coords[,2] - p[2])^2
+  )
+})
+
+
+grid$r <- r_coast[nearest_vertex] / 1000  # km
+
+#matix of distances
+dist.coast.points2.grid <- abs(outer(grid$r, grid$r, '-'))
+saveRDS(dist.coast.points2.grid, 'maps coast/dist.coast.points.grid.rds')
+
+ggplot(background) +
+  geom_sf(fill = "antiquewhite") +
+  geom_sf(data = full_coastline_2062, color = "blue") +
+  
+  # estaciones
+  geom_sf(data = stations, aes(color = r), size = 2) +
+  
+  # puntos de la costa seleccionados
+  geom_sf(
+    data = nearest_points_coast,
+    color = "black",
+    shape = 19,
+    size = 5
+  ) + 
+  geom_point(aes(x = X, y = Y), data = coast_coords[nearest_vertex, ],
+             color = 'red',
+             size = 3,
+             shape = 4,
+             stroke = 1) +
+  
+  scale_color_viridis_c(name = "r(s) [km]") +
+  coord_sf(
+    xlim = st_coordinates(limits)[,1],
+    ylim = st_coordinates(limits)[,2]
+  )
