@@ -227,9 +227,18 @@ plot(basura$process[, 50], type = 'l')
 # change of names
 
 # KRIGING AND MAP
+basura <- readRDS('conv.q0.50.100k.rds')
+basura <- readRDS('coastal.q0.50.100k.rds')
+# distances
 dmatcoast_conv2 <- readRDS('maps coast/phimat.grid.rds')
 newcoords <- readRDS('grid_km.rds')
 coords <- readRDS('coords.stations.rds')
+
+dist_coast_points.grid <- readRDS('maps coast/dist.coast.points.grid.rds')
+dist_coast.grid <- readRDS('maps coast/dist.vec.grid.rds')
+
+dist_coast_points.comb <- readRDS('maps coast/r.stations.grid.rds')
+
 # substract mean of the GP
 
 w <- basura$process[, 1:40 + 0*48]
@@ -245,17 +254,33 @@ basura2 <- krigeBayesRcpp(
   dr = drmat_conv,
   dcoast = dmatcoast_conv,
   newdcoast = dmatcoast_conv2,
-  lencoast = lencoast_conv
+  lencoast = lencoast_conv,
+  dvec = dist_coast,
+  newdvec = dist_coast.grid,
+  dmatc = dist_coast_points,
+  newdmatc = dist_coast_points.grid,
+  combdmatc = dist_coast_points.comb
 )
 
 
 library(viridis)
 library(ggplot2)
 library(sf)
+library(sp)
 limits <- readRDS('limits.rds')
 background <- readRDS('background.rds')
 grid <- readRDS('grid.rds')
-
+stations <- st_transform(
+  as(
+    SpatialPointsDataFrame(
+      coords = stations[c("LON", "LAT")],
+      data = stations,
+      proj4string = CRS("+proj=longlat +datum=WGS84 +ellps=WGS84 +towgs84=0,0,0")
+    ),
+    'sf'
+  ),
+  2062
+)
 mu <- colMeans(basura2,na.rm=T)
 grid_coords <- cbind(st_coordinates(grid), mu = mu)
 grid_coords <- na.omit(grid_coords)
@@ -278,10 +303,12 @@ ggplot(data = background) +
   scale_color_gradient2( low = scales::muted("blue"), mid = "white", high = scales::muted("red"),
                         space = "Lab", midpoint = 0, limits = c(-5, 5), name = "Distance (km)") +
   
-  
+
 coord_sf(xlim = st_coordinates(limits)[, 1], ylim = st_coordinates(limits)[, 2])
 
+############################################################
 
+# chequeos 
 colMeans(w.def)
 
 stations$mu <- colMeans(w.def)
@@ -309,7 +336,7 @@ points(dmatcoast_conv2[790, ], col = 'red')
 min(dmatcoast_conv2[790, ])
 
 # forensic analyisis of errors
-hp <- basura$process[1 , 44:48 + 3*48, drop = FALSE]
+hp <- basura$process[1 , 44:48 + 0*48, drop = FALSE]
 w <- w.def[1, , drop = FALSE]
 
 R22 <- conv_covariance_matrix(hp[1, 1], hp[1, 2], hp[1, 3], hp[1, 4], hp[1, 5],

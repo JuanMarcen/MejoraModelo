@@ -111,6 +111,58 @@ arma::mat inv_covariance_matrix(
 }
 
 // [[Rcpp::export]]
+arma::mat covariance_matrix(
+    const double precision, //hp(0, m)
+    const double decay, //hp(1, m)
+    const double varsigma, //hp(2, m)
+    const double varphi, //hp(3, m)
+    const double cprec, //hp(4, m)
+    const arma::mat& dmat,
+    const arma::vec& dvec,
+    const arma::mat& dmatc
+){
+  // new definition of the covariance matrices
+  arma::vec expdc = exp(- varsigma* dvec); //nx1
+  arma::mat Mcoast = exp(- varphi * dmatc); //nxn
+  // column multiplication
+  Mcoast.each_row() %= expdc.t();
+  // row multiplication
+  Mcoast.each_col() %= expdc;
+  
+  arma::mat R = 1.0 / precision * exp(- decay * dmat) + 1.0 / cprec * Mcoast;
+  
+  return R;
+}
+
+
+// [[Rcpp::export]]
+arma::mat covariance_matrix2(
+    const double precision, //hp(0, m)
+    const double decay, //hp(1, m)
+    const double varsigma, //hp(2, m)
+    const double varphi, //hp(3, m)
+    const double cprec, //hp(4, m)
+    const arma::mat& dmat,
+    const arma::vec& dvec1,
+    const arma::vec& dvec2,
+    const arma::mat& dmatc //nxn0
+){
+  // new definition of the covariance matrices
+  arma::vec expdc1 = exp(- varsigma* dvec1); //nx1
+  arma::vec expdc2 = exp(- varsigma* dvec2); //n0x1
+  arma::mat Mcoast = exp(- varphi * dmatc); //nxn0
+  // column multiplication
+  Mcoast.each_row() %= expdc2.t();
+  // row multiplication
+  Mcoast.each_col() %= expdc1;
+  
+  arma::mat R = 1.0 / precision * exp(- decay * dmat) + 1.0 / cprec * Mcoast;
+  
+  return R;
+}
+
+
+// [[Rcpp::export]]
 arma::mat inv_conv_covariance_matrix(
     const double precision, //hp(0, m)
     const double decay, //hp(1, m)
@@ -153,7 +205,7 @@ arma::mat conv_covariance_matrix(
   double factor = lencoast * covcoast.n_rows;
   double factor2 = factor * factor;
   // no multiplicar por factor
-  arma::mat Mcoast =  expdc * covcoast * expdc.t(); //nxn
+  arma::mat Mcoast = expdc * covcoast * expdc.t(); //nxn
   
   arma::mat R = 1.0 / precision * exp(- decay * dmat) + Mcoast;
   

@@ -452,6 +452,9 @@ grid$r <- r_coast[nearest_vertex] / 1000  # km
 dist.coast.points2.grid <- abs(outer(grid$r, grid$r, '-'))
 saveRDS(dist.coast.points2.grid, 'maps coast/dist.coast.points.grid.rds')
 
+r.stations.grid <- abs(outer(stations$r, grid$r, '-'))
+saveRDS(r.stations.grid, 'maps coast/r.stations.grid.rds')
+
 ggplot(background) +
   geom_sf(fill = "antiquewhite") +
   geom_sf(data = full_coastline_2062, color = "blue") +
@@ -477,3 +480,27 @@ ggplot(background) +
     xlim = st_coordinates(limits)[,1],
     ylim = st_coordinates(limits)[,2]
   )
+
+
+# checks for future covariances matrices
+# all together
+stations.basura <- rbind(grid[, 0], stations[, 0])
+
+dvec <- c(grid$dist, stations$dist)
+dr <- c(grid$r, stations$r)
+dr <- abs(outer(dr, dr, '-'))
+
+M.coast <- exp(-0.003*dr)
+
+M.coast <- M.coast * dvec
+M.coast <- sweep(M.coast, 2, dvec, '*')
+
+final <- M.coast
+R21 <- final[791:830, 1:790]
+
+## submatrix
+final2 <- exp(-0.003*r.stations.grid)
+final2 <- final2 * stations$dist
+final2 <- sweep(final2, 2, grid$dist, '*')
+
+all.equal(R21, final2)

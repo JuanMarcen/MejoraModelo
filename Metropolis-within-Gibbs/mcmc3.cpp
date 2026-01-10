@@ -424,7 +424,12 @@ arma::mat krigeBayesRcpp(
     const arma::mat& dr, //200x200
     const arma::mat& dcoast, //nx200
     const arma::mat& newdcoast, //n0x200
-    const double lencoast
+    const double lencoast,
+    const arma::vec& dvec, 
+    const arma::vec& newdvec,
+    const arma::mat& dmatc,
+    const arma::mat& newdmatc,
+    const arma::mat& combdmatc
 ) {
   
   int B  = w.n_rows;
@@ -451,12 +456,18 @@ arma::mat krigeBayesRcpp(
     cprec = hp(b, 4);
       
     wb = w.row(b).t();
-    R22 = conv_covariance_matrix(precision, decay, varsigma, varphi, cprec,
-                                 d22, dcoast, dr, lencoast);
-    R11 = conv_covariance_matrix(precision, decay, varsigma, varphi, cprec,
-                                 d11, newdcoast, dr, lencoast);
-    R21 = conv_covariance_matrix2(precision, decay, varsigma, varphi, cprec,
-                                 d21, dcoast, newdcoast, dr, lencoast);
+    // R22 = conv_covariance_matrix(precision, decay, varsigma, varphi, cprec,
+    //                              d22, dcoast, dr, lencoast);
+    R22 = covariance_matrix(precision, decay, varsigma, varphi, cprec,
+                            d22, dvec, dmatc);
+    // R11 = conv_covariance_matrix(precision, decay, varsigma, varphi, cprec,
+    //                              d11, newdcoast, dr, lencoast);
+    R11 = covariance_matrix(precision, decay, varsigma, varphi, cprec,
+                            d11, newdvec, newdmatc);
+    // R21 = conv_covariance_matrix2(precision, decay, varsigma, varphi, cprec,
+    //                              d21, dcoast, newdcoast, dr, lencoast);
+    R21 = covariance_matrix2(precision, decay, varsigma, varphi, cprec,
+                            d21, dvec, newdvec, combdmatc);
 
     
     

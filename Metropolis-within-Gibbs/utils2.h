@@ -25,6 +25,27 @@ arma::mat inv_covariance_matrix(
     const arma::vec& dvec,
     const arma::mat& dmatc
 );
+arma::mat covariance_matrix(
+    const double precision, //hp(0, m)
+    const double decay, //hp(1, m)
+    const double varsigma, //hp(2, m)
+    const double varphi, //hp(3, m)
+    const double cprec, //hp(4, m)
+    const arma::mat& dmat,
+    const arma::vec& dvec,
+    const arma::mat& dmatc
+);
+arma::mat covariance_matrix2(
+    const double precision, //hp(0, m)
+    const double decay, //hp(1, m)
+    const double varsigma, //hp(2, m)
+    const double varphi, //hp(3, m)
+    const double cprec, //hp(4, m)
+    const arma::mat& dmat,
+    const arma::vec& dvec1,
+    const arma::vec& dvec2,
+    const arma::mat& dmatc //nxn0
+);
 arma::mat inv_conv_covariance_matrix(
     const double precision, 
     const double decay, 
