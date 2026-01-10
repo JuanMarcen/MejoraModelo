@@ -65,9 +65,9 @@ r <- ncol(V)
 p_alpha <- unlist(lapply(X_alpha, ncol))
 s <- rep(0:39, each = 5888)
 
-nSims <- 1000
+nSims <- 100
 nThin <- 1
-nBurnin <- 1000
+nBurnin <- 100
 nReport <- 10
 
 #more distances
@@ -85,8 +85,9 @@ basura <- inv_covariance_matrix(hp[1,1], hp[2,1], hp[3,1], hp[4,1], hp[5,1], dis
 class(basura)
 dim(basura)
 
-a <- conv_covariance_matrix(hp[1,1], hp[2,1], hp[3,1], hp[4,1], hp[5,1], 
-                                     dist, dmatcoast_conv, drmat_conv, lencoast_conv)
+a <- covariance_matrix2(hp[1,1], hp[2,1], hp[3,1], hp[4,1], hp[5,1], 
+              matrix(1, ncol = 790, nrow = 40), 
+              dist_coast, dist_coast.grid, dist_coast_points.comb)
 dim(a)
 
 class(basura)
@@ -147,45 +148,45 @@ repeat {
   Sys.sleep(0.5)
 }
 
-basura <-spQuantileRcpp(
-  tau = tau,
-  Y = Y,
-  X = X,
-  V = V,
-  X_alpha = X_alpha,
-  dist = dist,
-  dist_coast = dist_coast,
-  dist_coast_point = dist_coast_points,
-  dmatcoast_conv = dmatcoast_conv,
-  drmat_conv = drmat_conv,
-  lencoast_conv = lencoast_conv,
-  M = M,
-  P = P,
-  M_beta_alpha = M_beta_alpha,
-  P_beta_alpha = P_beta_alpha,
-  da = da,
-  db = db,
-  ga = ga,
-  gb = gb,
-  ra = ra,
-  rb = rb,
-  na = na, 
-  nb = nb,
-  beta = beta,
-  alpha = alpha,
-  prec = prec,
-  hp = hp,
-  beta_alpha = beta_alpha,
-  N = N,
-  n = n,
-  p = p,
-  r = r,
-  p_alpha = p_alpha,
-  nSims = nSims,
-  nThin = nThin,
-  nBurnin = nBurnin,
-  nReport = nReport,
-  s = s)
+# basura <-spQuantileRcpp(
+#   tau = tau,
+#   Y = Y,
+#   X = X,
+#   V = V,
+#   X_alpha = X_alpha,
+#   dist = dist,
+#   dist_coast = dist_coast,
+#   dist_coast_point = dist_coast_points,
+#   dmatcoast_conv = dmatcoast_conv,
+#   drmat_conv = drmat_conv,
+#   lencoast_conv = lencoast_conv,
+#   M = M,
+#   P = P,
+#   M_beta_alpha = M_beta_alpha,
+#   P_beta_alpha = P_beta_alpha,
+#   da = da,
+#   db = db,
+#   ga = ga,
+#   gb = gb,
+#   ra = ra,
+#   rb = rb,
+#   na = na, 
+#   nb = nb,
+#   beta = beta,
+#   alpha = alpha,
+#   prec = prec,
+#   hp = hp,
+#   beta_alpha = beta_alpha,
+#   N = N,
+#   n = n,
+#   p = p,
+#   r = r,
+#   p_alpha = p_alpha,
+#   nSims = nSims,
+#   nThin = nThin,
+#   nBurnin = nBurnin,
+#   nReport = nReport,
+#   s = s)
 
 # traceplots pf GP
 
@@ -240,7 +241,6 @@ dist_coast.grid <- readRDS('maps coast/dist.vec.grid.rds')
 dist_coast_points.comb <- readRDS('maps coast/r.stations.grid.rds')
 
 # substract mean of the GP
-
 w <- basura$process[, 1:40 + 0*48]
 Z <- X_alpha[[1]]
 w.def <- w - t(Z %*% t(basura$process[, 41:43 + 0*48]))
@@ -307,7 +307,122 @@ ggplot(data = background) +
 coord_sf(xlim = st_coordinates(limits)[, 1], ylim = st_coordinates(limits)[, 2])
 
 ############################################################
+# for launching in big computer
+# KRIGING AND MAP
+# chains
+conv <- readRDS('conv.nofactor.q0.50.100k.rds')
+coastal <- readRDS('coastal.q0.50.100k.rds')
 
+# distances
+dmatcoast_conv2 <- readRDS('maps coast/phimat.grid.rds')
+newcoords <- readRDS('grid_km.rds')
+coords <- readRDS('coords.stations.rds')
+
+dist_coast_points.grid <- readRDS('maps coast/dist.coast.points.grid.rds')
+dist_coast.grid <- readRDS('maps coast/dist.vec.grid.rds')
+
+dist_coast_points.comb <- readRDS('maps coast/r.stations.grid.rds')
+
+# function for kriging all parameters
+kriging <- function(chain, vars){
+  
+  out <- list()
+  
+  for (i in 0:(length(vars) - 1)){
+    # substract mean of the GP
+    w <- chain$process[, 1:40 + i*48]
+    Z <- X_alpha[[i + 1]]
+    w.def <- w - t(Z %*% t(basura$process[, 41:43 + i*48]))
+    
+    out[[vars[i + 1]]] <- krigeBayesRcpp(
+      w = w.def,
+      hp = basura$process[ , 44:48 + i*48, drop = FALSE],
+      coords = coords,
+      newcoords = newcoords,
+      dr = drmat_conv,
+      dcoast = dmatcoast_conv,
+      newdcoast = dmatcoast_conv2,
+      lencoast = lencoast_conv,
+      dvec = dist_coast,
+      newdvec = dist_coast.grid,
+      dmatc = dist_coast_points,
+      newdmatc = dist_coast_points.grid,
+      combdmatc = dist_coast_points.comb
+    )
+  }
+  
+  return(out)
+}
+
+vars <- c('intercept', 's.1', 'c.1', 'g300', 'g500', 'g700')
+# change in mcmc3 the method!
+kr.conv <- kriging(conv, vars)
+kr.coastal <- kriging(coastal, vars)
+
+# map plots
+library(viridis)
+library(ggplot2)
+library(sf)
+library(sp)
+limits <- readRDS('limits.rds')
+background <- readRDS('background.rds')
+grid <- readRDS('grid.rds')
+stations <- st_transform(
+  as(
+    SpatialPointsDataFrame(
+      coords = stations[c("LON", "LAT")],
+      data = stations,
+      proj4string = CRS("+proj=longlat +datum=WGS84 +ellps=WGS84 +towgs84=0,0,0")
+    ),
+    'sf'
+  ),
+  2062
+)
+
+plot.gp <- function(kriging, grid, stations, limits, background, var, tau){
+  mu <- colMeans(kriging[[var]], na.rm = T)
+  
+  grid_coords <- cbind(st_coordinates(grid), mu = mu)
+  grid_coords <- na.omit(grid_coords)
+  grid.new <- st_sf(mu = round(as.vector(mu), 3), geometry = grid)
+  
+  ggplot(data = background) + 
+    geom_sf(fill = "antiquewhite") + 
+    xlab("Longitud (º)") + ylab("Latitud (º)") + ggtitle(bquote( .(var) * .(' (') * tau *.(' = ') *.(0.5) *.(')'))) +
+    theme(panel.background = element_rect(fill = "aliceblue"),
+          axis.text.x=element_text(size = 6),
+          axis.text.y=element_text(size = 6, angle = 90),
+          axis.title=element_text(size = 10, face = "bold")) + 
+    geom_tile(data = grid_coords, aes(X, Y, fill = mu)) +
+    geom_tile(data = grid.new, ggplot2::aes(x = st_coordinates(grid.new)[, 1], y = st_coordinates(grid.new)[, 2], fill = mu)) +
+    geom_sf(data = stations, aes(color = mu), 
+            shape = 21,        # forma con relleno y borde
+            color = "black",   # contorno
+            size = 3,
+            stroke = 1 )+
+    scale_fill_gradient2( low = scales::muted("blue"), mid = "white", high = scales::muted("red"),
+                          space = "Lab", midpoint = 0, limits = c(-5, 5), name = "Distance (km)") +
+    scale_color_gradient2( low = scales::muted("blue"), mid = "white", high = scales::muted("red"),
+                           space = "Lab", midpoint = 0, limits = c(-5, 5), name = "Distance (km)") +
+  
+    coord_sf(xlim = st_coordinates(limits)[, 1], ylim = st_coordinates(limits)[, 2])
+}
+
+# for all vars and save images
+for (var in vars){
+  filename <- paste0('Metropolis-within-Gibbs/mapsGP/conv/GP.', var, '.pdf')
+  g <- plot.gp(kr.conv, grid, stations, limits, background, var, 0.50)
+  ggsave(filename, g, height = 8, width = 10)
+}
+
+for (var in vars){
+  filename <- paste0('Metropolis-within-Gibbs/mapsGP/coastal/GP.', var, '.pdf')
+  g <- plot.gp(kr.coastal, grid, stations, limits, background, var, 0.50)
+  ggsave(filename, g, height = 8, width = 10)
+}
+
+
+############################################################
 # chequeos 
 colMeans(w.def)
 
