@@ -3,9 +3,12 @@ rm(list = setdiff(ls(),c('basura', 'basura.coastal', 'basura.nofactor')))
 tau <- 0.5
 
 library(qs)
+df.og <- qread('df_jun_ag.qs')
 df <- qread('df_jun_ag.qs')
 df <- qread('C:/Users/PC/Desktop/Juan/df_jun_ag.qs')
 stations <- readRDS('stations.rds')
+
+df$Y[1:5888] <- NA
 
 Y <- df$Y
 X <- matrix(0, nrow = length(Y), ncol = 0)
@@ -66,10 +69,10 @@ r <- ncol(V)
 p_alpha <- unlist(lapply(X_alpha, ncol))
 s <- rep(0:39, each = 5888)
 
-nSims <- 100
+nSims <- 10
 nThin <- 1
-nBurnin <- 100
-nReport <- 10
+nBurnin <- 10
+nReport <- 100
 
 #more distances
 dist_coast <- readRDS('maps coast/dist.vec.rds')
@@ -149,45 +152,48 @@ repeat {
   Sys.sleep(0.5)
 }
 
-# basura <-spQuantileRcpp(
-#   tau = tau,
-#   Y = Y,
-#   X = X,
-#   V = V,
-#   X_alpha = X_alpha,
-#   dist = dist,
-#   dist_coast = dist_coast,
-#   dist_coast_point = dist_coast_points,
-#   dmatcoast_conv = dmatcoast_conv,
-#   drmat_conv = drmat_conv,
-#   lencoast_conv = lencoast_conv,
-#   M = M,
-#   P = P,
-#   M_beta_alpha = M_beta_alpha,
-#   P_beta_alpha = P_beta_alpha,
-#   da = da,
-#   db = db,
-#   ga = ga,
-#   gb = gb,
-#   ra = ra,
-#   rb = rb,
-#   na = na, 
-#   nb = nb,
-#   beta = beta,
-#   alpha = alpha,
-#   prec = prec,
-#   hp = hp,
-#   beta_alpha = beta_alpha,
-#   N = N,
-#   n = n,
-#   p = p,
-#   r = r,
-#   p_alpha = p_alpha,
-#   nSims = nSims,
-#   nThin = nThin,
-#   nBurnin = nBurnin,
-#   nReport = nReport,
-#   s = s)
+basura <-spQuantileRcpp(
+  tau = tau,
+  Y = Y,
+  X = X,
+  V = V,
+  X_alpha = X_alpha,
+  dist = dist,
+  dist_coast = dist_coast,
+  dist_coast_point = dist_coast_points,
+  dmatcoast_conv = dmatcoast_conv,
+  drmat_conv = drmat_conv,
+  lencoast_conv = lencoast_conv,
+  M = M,
+  P = P,
+  M_beta_alpha = M_beta_alpha,
+  P_beta_alpha = P_beta_alpha,
+  da = da,
+  db = db,
+  ga = ga,
+  gb = gb,
+  ra = ra,
+  rb = rb,
+  na = na,
+  nb = nb,
+  beta = beta,
+  alpha = alpha,
+  prec = prec,
+  hp = hp,
+  beta_alpha = beta_alpha,
+  N = N,
+  n = n,
+  p = p,
+  r = r,
+  p_alpha = p_alpha,
+  nSims = nSims,
+  nThin = nThin,
+  nBurnin = nBurnin,
+  nReport = nReport,
+  s = s)
+
+Y_nuevo <- apply(basura$missing, 2, mean)
+plot(abs(Y_nuevo - df.og$Y[1:5888]))
 
 # traceplots pf GP
 

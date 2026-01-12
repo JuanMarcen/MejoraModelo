@@ -55,6 +55,17 @@ Rcpp::List spQuantileRcpp(
   const double mean_Y = arma::mean(Y.elem(arma::find_finite(Y)));
   Y.elem(missing_idx).fill(mean_Y);
   
+  //fitted values
+  arma::mat fittedmat(nKeep, N);
+  arma::vec fitted_val(N);
+  
+  // loglikelihoods and DIC
+  arma::vec logLik(nKeep);
+  double logLikmean;
+  arma::mat E_aux(nKeep, N);
+  arma::vec e_aux(N);
+  arma::vec vecprec(nKeep);
+  double DIC;
   
   const double c1 = (1 - 2 * tau) / (tau * (1 - tau));
   const double c2 = tau * (1 - tau) / 2;
@@ -380,8 +391,19 @@ Rcpp::List spQuantileRcpp(
       }
     }
     
+   
+    
     // small modifications for good saving
     if (iter > 0 && iter % nThin == 0) {
+      // predictions 
+      fittedmat.row(save_idx) = (Y - e).t();
+      
+      //logLiks
+      vecprec(save_idx) = prec;
+      e_aux = e % (1 / xi);
+      E_aux.row(save_idx) = e_aux.t();
+      logLik(save_idx) = - 0.5 * N * log(1 / sqrt(prec)) - 0.5 *  sqrt(c2 / prec) * arma::sum(e_aux);
+      
       if (p > 0){
         keep(save_idx, arma::span(0, p - 1)) = beta.t();
         keep(save_idx, p) = prec;
@@ -401,15 +423,26 @@ Rcpp::List spQuantileRcpp(
     }
   }
   
+  fitted_val = arma::mean(fittedmat, 0).t();
+  
+  double meanprec = arma::mean(1 / sqrt(vecprec));
+  logLikmean = - 0.5 * log(meanprec) - 0.5 *  sqrt(c2 / meanprec) * arma::sum(mean(E_aux, 0).t());
+  
+  DIC = 2 * mean(logLik) - logLikmean;
+  
   if (missing_n == 0) {
     return Rcpp::List::create(
       Rcpp::Named("params") = keep,
-      Rcpp::Named("process") = keep_alpha
+      Rcpp::Named("process") = keep_alpha,
+      Rcpp::Named("fitted") = fitted_val,
+      Rcpp::Named("DIC") = DIC
     );
   } else {
     return Rcpp::List::create(
       Rcpp::Named("params") = keep,
       Rcpp::Named("process") = keep_alpha,
+      Rcpp::Named("fitted") = fitted_val,
+      Rcpp::Named("DIC") = DIC,
       Rcpp::Named("missing") = keep_Y
     );
   }
