@@ -81,5 +81,19 @@ arma::mat conv_covariance_matrix2(
     const double lencoast
 );
 arma::mat dist_mat(const arma::mat& A, const arma::mat& B);
+arma::mat inv_mat(
+    const double precision, //hp(0, m)
+    const double decay, //hp(1, m)
+    const double varsigma, //hp(2, m)
+    const double varphi, //hp(3, m)
+    const double cprec, //hp(4, m)
+    const arma::mat& dmat, //coastal
+    const arma::vec& dvec,
+    const arma::mat& dmatc,
+    const arma::mat& dmatcoast,//conv
+    const arma::mat& dr,
+    const double lencoast,
+    int model
+);
 
 #endif

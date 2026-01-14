@@ -241,6 +241,27 @@ arma::mat conv_covariance_matrix2(
 }
 
 // [[Rcpp::export]]
+arma::mat inv_mat(
+    const double precision, //hp(0, m)
+    const double decay, //hp(1, m)
+    const double varsigma, //hp(2, m)
+    const double varphi, //hp(3, m)
+    const double cprec, //hp(4, m)
+    const arma::mat& dmat, //coastal
+    const arma::vec& dvec,
+    const arma::mat& dmatc,
+    const arma::mat& dmatcoast,//conv
+    const arma::mat& dr,
+    const double lencoast,
+    int model
+){
+  if (model == 1) return(inv_covariance_matrix(precision, decay, varsigma, varphi, cprec,
+                                                 dmat, dvec, dmatc));
+  if (model == 2) return(inv_conv_covariance_matrix(precision, decay, varsigma, varphi, cprec, 
+                         dmat, dmatcoast, dr, lencoast));
+}
+
+// [[Rcpp::export]]
 arma::mat dist_mat(const arma::mat& A, const arma::mat& B) {
   int n1 = A.n_rows;
   int n2 = B.n_rows;

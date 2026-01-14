@@ -43,7 +43,8 @@ Rcpp::List spQuantileRcpp(
     const int nSims,      
     const int nThin,
     const int nBurnin,
-    const int nReport
+    const int nReport, 
+    const int model
     
 ) {
   
@@ -128,10 +129,14 @@ Rcpp::List spQuantileRcpp(
   for (int m = 0; m < r; ++m){
     // R.slice(m) = inv_covariance_matrix(hp(0, m), hp(1, m), hp(2, m), hp(3, m),
     //        hp(4, m), dist, dist_coast, dist_coast_points);
-    R.slice(m) = inv_conv_covariance_matrix(hp(0, m), hp(1, m), hp(2, m), hp(3, m),
-            hp(4, m), dist, dmatcoast_conv, drmat_conv, lencoast_conv);
+    // R.slice(m) = inv_conv_covariance_matrix(hp(0, m), hp(1, m), hp(2, m), hp(3, m),
+    //         hp(4, m), dist, dmatcoast_conv, drmat_conv, lencoast_conv);
+    R.slice(m) = inv_mat(hp(0, m), hp(1, m), hp(2, m), hp(3, m), hp(4, m),
+            dist, dist_coast, dist_coast_points, dmatcoast_conv, drmat_conv, lencoast_conv, 
+            model);
     Rlogdet(m) = arma::log_det_sympd(R.slice(m));
   }
+  
   
   //new aux for all hp
   double precision_aux;
@@ -232,8 +237,11 @@ Rcpp::List spQuantileRcpp(
         decay_aux   = exp(ldecay_aux);
         // R_aux       = inv_covariance_matrix(hp(0, m), decay_aux, hp(2, m), hp(3, m),
         //                                    hp(4, m), dist, dist_coast, dist_coast_points);
-        R_aux = inv_conv_covariance_matrix(hp(0, m), decay_aux, hp(2, m), hp(3, m),
-                        hp(4, m), dist, dmatcoast_conv, drmat_conv, lencoast_conv);
+        // R_aux = inv_conv_covariance_matrix(hp(0, m), decay_aux, hp(2, m), hp(3, m),
+        //                 hp(4, m), dist, dmatcoast_conv, drmat_conv, lencoast_conv);
+        R_aux = inv_mat(hp(0, m), decay_aux, hp(2, m), hp(3, m), hp(4, m),
+                dist, dist_coast, dist_coast_points, dmatcoast_conv, drmat_conv, lencoast_conv, 
+                model);
         Rlogdet_aux = arma::log_det_sympd(R_aux);
         vn       = alpha_m - Xb_alpha[m];
         vtRv_aux = arma::as_scalar(vn.t() * R_aux * vn);
@@ -257,8 +265,11 @@ Rcpp::List spQuantileRcpp(
         precision_aux   = exp(lprecision_aux);
         // R_aux       = inv_covariance_matrix(precision_aux, hp(1, m), hp(2, m), hp(3, m),
         //                                     hp(4, m), dist, dist_coast, dist_coast_points);
-        R_aux = inv_conv_covariance_matrix(precision_aux, hp(1, m), hp(2, m), hp(3, m),
-                        hp(4, m), dist, dmatcoast_conv, drmat_conv, lencoast_conv);
+        // R_aux = inv_conv_covariance_matrix(precision_aux, hp(1, m), hp(2, m), hp(3, m),
+        //                 hp(4, m), dist, dmatcoast_conv, drmat_conv, lencoast_conv);
+        R_aux = inv_mat(precision_aux, hp(1, m), hp(2, m), hp(3, m), hp(4, m),
+                dist, dist_coast, dist_coast_points, dmatcoast_conv, drmat_conv, lencoast_conv, 
+                model);
         Rlogdet_aux = arma::log_det_sympd(R_aux);
         vn       = alpha_m - Xb_alpha[m];
         vtRv_aux = arma::as_scalar(vn.t() * R_aux * vn);
@@ -281,8 +292,11 @@ Rcpp::List spQuantileRcpp(
         varsigma_aux   = exp(lvarsigma_aux);
         // R_aux       = inv_covariance_matrix(hp(0, m), hp(1, m), varsigma_aux, hp(3, m),
         //                                     hp(4, m), dist, dist_coast, dist_coast_points);
-        R_aux = inv_conv_covariance_matrix(hp(0, m), hp(1, m), varsigma_aux, hp(3, m),
-                        hp(4, m), dist, dmatcoast_conv, drmat_conv, lencoast_conv);
+        // R_aux = inv_conv_covariance_matrix(hp(0, m), hp(1, m), varsigma_aux, hp(3, m),
+        //                 hp(4, m), dist, dmatcoast_conv, drmat_conv, lencoast_conv);
+        R_aux = inv_mat(hp(0, m), hp(1, m), varsigma_aux, hp(3, m), hp(4, m),
+                dist, dist_coast, dist_coast_points, dmatcoast_conv, drmat_conv, lencoast_conv, 
+                model);
         Rlogdet_aux = arma::log_det_sympd(R_aux);
         vn       = alpha_m - Xb_alpha[m];
         vtRv_aux = arma::as_scalar(vn.t() * R_aux * vn);
@@ -305,8 +319,11 @@ Rcpp::List spQuantileRcpp(
         varphi_aux   = exp(lvarphi_aux);
         // R_aux       = inv_covariance_matrix(hp(0, m), hp(1, m), hp(2, m), varphi_aux,
         //                                     hp(4, m), dist, dist_coast, dist_coast_points);
-        R_aux = inv_conv_covariance_matrix(hp(0, m), hp(1, m), hp(2, m), varphi_aux,
-                        hp(4, m), dist, dmatcoast_conv, drmat_conv, lencoast_conv);
+        // R_aux = inv_conv_covariance_matrix(hp(0, m), hp(1, m), hp(2, m), varphi_aux,
+        //                 hp(4, m), dist, dmatcoast_conv, drmat_conv, lencoast_conv);
+        R_aux = inv_mat(hp(0, m), hp(1, m), hp(2, m), varphi_aux, hp(4, m),
+                dist, dist_coast, dist_coast_points, dmatcoast_conv, drmat_conv, lencoast_conv, 
+                model);
         Rlogdet_aux = arma::log_det_sympd(R_aux);
         vn       = alpha_m - Xb_alpha[m];
         vtRv_aux = arma::as_scalar(vn.t() * R_aux * vn);
@@ -329,8 +346,11 @@ Rcpp::List spQuantileRcpp(
         cprec_aux   = exp(lcprec_aux);
         // R_aux       = inv_covariance_matrix(hp(0, m), hp(1, m), hp(2, m), hp(3, m),
         //                                     cprec_aux, dist, dist_coast, dist_coast_points);
-        R_aux = inv_conv_covariance_matrix(hp(0, m), hp(1, m), hp(2, m), hp(3, m),
-                        cprec_aux, dist, dmatcoast_conv, drmat_conv, lencoast_conv);
+        // R_aux = inv_conv_covariance_matrix(hp(0, m), hp(1, m), hp(2, m), hp(3, m),
+        //                 cprec_aux, dist, dmatcoast_conv, drmat_conv, lencoast_conv);
+        R_aux = inv_mat(hp(0, m), hp(1, m), hp(2, m), hp(3, m), cprec_aux,
+                dist, dist_coast, dist_coast_points, dmatcoast_conv, drmat_conv, lencoast_conv, 
+                model);
         Rlogdet_aux = arma::log_det_sympd(R_aux);
         vn       = alpha_m - Xb_alpha[m];
         vtRv_aux = arma::as_scalar(vn.t() * R_aux * vn);
@@ -462,7 +482,8 @@ arma::mat krigeBayesRcpp(
     const arma::vec& newdvec,
     const arma::mat& dmatc,
     const arma::mat& newdmatc,
-    const arma::mat& combdmatc
+    const arma::mat& combdmatc,
+    const int model
 ) {
   
   int B  = w.n_rows;
@@ -489,16 +510,35 @@ arma::mat krigeBayesRcpp(
     cprec = hp(b, 4);
       
     wb = w.row(b).t();
-    R22 = conv_covariance_matrix(precision, decay, varsigma, varphi, cprec,
-                                 d22, dcoast, dr, lencoast);
+    
+    switch(model){
+    case 2:
+      R22 = conv_covariance_matrix(precision, decay, varsigma, varphi, cprec,
+                                   d22, dcoast, dr, lencoast);
+      R11 = conv_covariance_matrix(precision, decay, varsigma, varphi, cprec,
+                                   d11, newdcoast, dr, lencoast);
+      R21 = conv_covariance_matrix2(precision, decay, varsigma, varphi, cprec,
+                                    d21, dcoast, newdcoast, dr, lencoast);
+      break;
+    case 1:
+      R22 = covariance_matrix(precision, decay, varsigma, varphi, cprec,
+                              d22, dvec, dmatc);
+      R11 = covariance_matrix(precision, decay, varsigma, varphi, cprec,
+                              d11, newdvec, newdmatc);
+      R21 = covariance_matrix2(precision, decay, varsigma, varphi, cprec,
+                               d21, dvec, newdvec, combdmatc);
+      break;
+    }
+    // R22 = conv_covariance_matrix(precision, decay, varsigma, varphi, cprec,
+    //                              d22, dcoast, dr, lencoast);
     // R22 = covariance_matrix(precision, decay, varsigma, varphi, cprec,
     //                         d22, dvec, dmatc);
-    R11 = conv_covariance_matrix(precision, decay, varsigma, varphi, cprec,
-                                 d11, newdcoast, dr, lencoast);
+    // R11 = conv_covariance_matrix(precision, decay, varsigma, varphi, cprec,
+    //                              d11, newdcoast, dr, lencoast);
     // R11 = covariance_matrix(precision, decay, varsigma, varphi, cprec,
     //                         d11, newdvec, newdmatc);
-    R21 = conv_covariance_matrix2(precision, decay, varsigma, varphi, cprec,
-                                 d21, dcoast, newdcoast, dr, lencoast);
+    // R21 = conv_covariance_matrix2(precision, decay, varsigma, varphi, cprec,
+    //                              d21, dcoast, newdcoast, dr, lencoast);
     // R21 = covariance_matrix2(precision, decay, varsigma, varphi, cprec,
     //                         d21, dvec, newdvec, combdmatc);
     
