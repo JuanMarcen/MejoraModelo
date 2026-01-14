@@ -288,7 +288,7 @@ nearest_vertex <- apply(coast_proj, 1, function(p) {
 
 
 stations$r <- r_coast[nearest_vertex] / 1000  # km
-
+saveRDS(stations$r, 'maps coast/r.stations.rds')
 #matix of distances
 dist.coast.points2 <- abs(outer(stations$r, stations$r, '-'))
 saveRDS(dist.coast.points2, 'maps coast/dist.coast.points2.rds')

@@ -30,9 +30,9 @@ library(quantreg)
 
 set.seed(05052002)
 stations$group <- sample(rep(1:10, each = 4))
+stations$r <- readRDS('maps coast/r.stations.rds')
 
 #R1.CV <- data.frame(matrix(NA, ncol = 1, nrow = 10))
-model <- 2
 dist <- readRDS('maps coast/dist.matrix.rds')
 dist_coast <- readRDS('maps coast/dist.vec.rds')
 dist_coast_points <- readRDS('maps coast/dist.coast.points2.rds')
@@ -209,6 +209,7 @@ cv.fold <- function(j, df, stations, tau, model){
   
   # cambiar para cuando no sea conv !!!! 36 x 4
   dist_coast_points.comb <- readRDS('maps coast/r.stations.grid.rds')
+  dist_coast_points.comb <- abs(outer(stations.train$r, stations.test$r, '-'))
   
   # function for kriging all parameters
   kriging <- function(chain, vars){
@@ -269,14 +270,16 @@ cv.fold <- function(j, df, stations, tau, model){
   colnames(pred)[4] <- 'pred_q0.50'
   
   
-  R1.conv<- R1_bay(pred, 0.50, test.df)
-  # R1.conv$R1_locales
-  # R1.conv$R1_globales
-  out <- mean(R1.conv$R1_locales[, 1], na.rm = T) # what I save
+  R1 <- R1_bay(pred, 0.50, test.df)
+ 
+  out <- mean(R1$R1_locales[, 1], na.rm = T) # what I save
   return(list(
     fold = j,
     test_ids = paste(test, collapse = "-"),
-    R1 = out
+    R1.mean = out,
+    R1 = na.omit(R1$R1_locales),
+    model = basura,
+    kriging = basura2
   )
   )
 }
@@ -289,7 +292,7 @@ clusterExport(
   cl,
   varlist = c(
     "df", "stations", "tau", "dist", "dist_coast", "dist_coast_points",
-    "dmatcoast_conv", "dmatcoast_conv2", "drmat_conv","coords", "model",
+    "dmatcoast_conv", "dmatcoast_conv2", "drmat_conv","coords",
     "R1_bay", "check"
   ),
   envir = environment()
@@ -301,16 +304,26 @@ clusterEvalQ(cl, {
   library(quantreg)
 })
 
-res <- parLapply(cl, 1:10, cv.fold,
+res1 <- parLapply(cl, 1:10, cv.fold,
                  df = df,
                  stations = stations,
                  tau = tau, 
-                 model = model)
+                 model = 1)
+
+res2 <- parLapply(cl, 1:10, cv.fold,
+                  df = df,
+                  stations = stations,
+                  tau = tau, 
+                  model = 2)
 
 stopCluster(cl)
-R1.CV <- data.frame(
-  R1 = sapply(res, `[[`, "R1"),
-  row.names = sapply(res, `[[`, "test_ids")
+R1.coastal <- data.frame(
+  R1 = sapply(res1, `[[`, "R1"),
+  row.names = sapply(res1, `[[`, "test_ids")
+)
+R1.conv <- data.frame(
+  R1 = sapply(res2, `[[`, "R1"),
+  row.names = sapply(res2, `[[`, "test_ids")
 )
 
-
+cv.fold(1, df, stations, 0.50, 1)
