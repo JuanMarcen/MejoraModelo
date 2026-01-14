@@ -93,9 +93,11 @@ a <- covariance_matrix2(hp[1,1], hp[2,1], hp[3,1], hp[4,1], hp[5,1],
               matrix(1, ncol = 790, nrow = 40), 
               dist_coast, dist_coast.grid, dist_coast_points.comb)
 dim(a)
-
 class(basura)
 dim(basura)
+
+a <- inv_mat(hp[1,1], hp[2,1], hp[3,1], hp[4,1], hp[5,1], dist, dist_coast, dist_coast_points, 
+             dmatcoast_conv, drmat_conv, lencoast_conv, 2)
 repeat {
   basura <- try(spQuantileRcpp(
     tau = tau,
@@ -135,7 +137,8 @@ repeat {
     nThin = nThin,
     nBurnin = nBurnin,
     nReport = nReport,
-    s = s
+    s = s,
+    model = 1
   ),
   silent = TRUE
   )
@@ -266,7 +269,8 @@ basura2 <- krigeBayesRcpp(
   newdvec = dist_coast.grid,
   dmatc = dist_coast_points,
   newdmatc = dist_coast_points.grid,
-  combdmatc = dist_coast_points.comb
+  combdmatc = dist_coast_points.comb, 
+  model = 1
 )
 
 

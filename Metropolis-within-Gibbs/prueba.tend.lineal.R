@@ -134,7 +134,8 @@ repeat {
     nThin = nThin,
     nBurnin = nBurnin,
     nReport = nReport,
-    s = s
+    s = s,
+    model = 1
   ),
   silent = TRUE
   )
