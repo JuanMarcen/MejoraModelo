@@ -185,7 +185,7 @@ for (i in 0:8){
 # for launching in big computer
 # KRIGING AND MAP
 # chains
-conv <- readRDS('conv.nofactor.q0.50.100k.rds')
+conv <- readRDS('conv.trend.q0.50.100k.rds')
 coastal <- readRDS('coastal.q0.50.100k.rds')
 
 # distances
@@ -298,3 +298,7 @@ for (var in vars){
   ggsave(filename, g, height = 8, width = 10)
 }
 
+
+##############################
+plot(basura$process[, 1 + 4 * 48], type = 'l', main = paste0(names[4 + 1], '(', stations$NAME2[1], ')'),
+     xlab = 'Sample', ylab = 'Value')
